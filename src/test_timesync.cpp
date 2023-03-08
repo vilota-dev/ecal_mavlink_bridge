@@ -89,8 +89,14 @@ int main(int argc, char** argv)
 
     telemetry.subscribe_scaled_imu(
         [] (Telemetry::Imu imu_data) {
-            spdlog::info("imu ts = {}", imu_data.timestamp_us);
+            spdlog::info("imu scaled ts = {}", imu_data.timestamp_us);
     });
+
+    telemetry.subscribe_imu(
+        [] (Telemetry::Imu imu_data) {
+            spdlog::info("imu highres ts = {}", imu_data.timestamp_us);
+        }
+    );
 
     while (true) {
         std::this_thread::sleep_for(std::chrono::seconds(1));
