@@ -1,6 +1,7 @@
 #include <mavsdk/mavsdk.h>
 #include <mavsdk/plugins/mocap/mocap.h>
 #include <mavsdk/plugins/telemetry/telemetry.h>
+#include <mavsdk/plugins/shell/shell.h>
 
 #include <spdlog/spdlog.h>
 
@@ -24,6 +25,8 @@ void usage(const std::string& bin_name)
               << " For Serial : serial:///path/to/serial/dev[:baudrate]\n"
               << "For example, to connect to the simulator use URL: udp://:14540\n";
 }
+
+void run_interactive_shell(std::shared_ptr<System> system);
 
 std::shared_ptr<System> get_system(Mavsdk& mavsdk)
 {
@@ -113,12 +116,32 @@ int main(int argc, char** argv)
     });
 
     std::thread t_odometry_send(run_fake_odometry_send, system);
+    std::thread t_shell(run_interactive_shell, system);
 
     while (true) {
-        std::this_thread::sleep_for(seconds(5));
+        std::this_thread::sleep_for(seconds(10));
         spdlog::info("system steady time now {} ms", std::chrono::steady_clock::now().time_since_epoch().count() / 1e6);
         spdlog::info("current time offset estimated: {} ms", system->get_timesync_offset_ns() / 1e6);
     }
 
     return 0;
+}
+
+void run_interactive_shell(std::shared_ptr<System> system)
+{
+    Shell shell{system};
+
+    shell.subscribe_receive([](const std::string output) { std::cout << output; });
+
+    while (true) {
+        std::string command;
+        getline(std::cin, command);
+
+        if (command == "exit") {
+            break;
+        }
+
+        shell.send(command);
+    }
+    std::cout << '\n';
 }
