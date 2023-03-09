@@ -90,13 +90,15 @@ int main(int argc, char** argv)
     );
 
     telemetry.subscribe_scaled_imu(
-        [] (Telemetry::Imu imu_data) {
-            spdlog::info("imu scaled ts = {}", imu_data.timestamp_us);
+        [system] (Telemetry::Imu imu_data) {
+            uint64_t timestamp_us =  imu_data.timestamp_us - system->get_timesync_offset_ns() / 1e6;
+            spdlog::info("imu scaled raw_ts = {} ms,  host_ts = {} ms", imu_data.timestamp_us / 1e3, timestamp_us / 1e3);
     });
 
     telemetry.subscribe_imu(
-        [] (Telemetry::Imu imu_data) {
-            spdlog::info("imu highres ts = {}", imu_data.timestamp_us);
+        [system] (Telemetry::Imu imu_data) {
+            uint64_t timestamp_us =  imu_data.timestamp_us - system->get_timesync_offset_ns() / 1e6;
+            spdlog::info("imu highres raw_ts = {} ms,  host_ts = {} ms", imu_data.timestamp_us / 1e3, timestamp_us / 1e3);
         }
     );
 
