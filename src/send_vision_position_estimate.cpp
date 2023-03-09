@@ -67,7 +67,14 @@ void run_fake_odometry_send(std::shared_ptr<System> system)
     while (true) {
         Mocap::VisionPositionEstimate zero{};
         zero.time_usec = std::chrono::steady_clock::now().time_since_epoch().count();
-        mocap.set_vision_position_estimate(zero);
+        auto ret = mocap.set_vision_position_estimate(zero);
+        
+        if (ret == Mocap::Result::NoSystem)
+            spdlog::warn("no system connected");
+        else if (ret == Mocap::Result::Success)
+            spdlog::info("mocap sent success");
+        else
+            spdlog::warn("mocap send other error {}", ret);
         count++;
         if (count % 100 == 0)
             std::cout << "vision position estimate: " << zero << std::endl;
