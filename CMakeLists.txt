@@ -10,8 +10,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Enable strict handling of warnings
 add_definitions("-Wall -Wextra -Werror")
 
-# Finds MAVSDK when installed system wide.
-find_package(MAVSDK REQUIRED)
+# Finds MAVSDK for lacal install
+set(cmake_config_DIR "/home/$ENV{USER}/git/MAVSDK/build/install/lib/cmake")
+set(MAVSDK_DIR ${cmake_config_DIR}/MAVSDK)
+find_package(MAVSDK CONFIG REQUIRED)
+
 find_package(spdlog REQUIRED)
 
 # Specify your app's executable name, and list of source files used to create it.
