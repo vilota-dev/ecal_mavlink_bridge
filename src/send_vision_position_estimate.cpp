@@ -67,6 +67,9 @@ void run_fake_odometry_send(std::shared_ptr<System> system)
     while (true) {
         Mocap::VisionPositionEstimate zero{};
         zero.time_usec = std::chrono::steady_clock::now().time_since_epoch().count();
+        zero.pose_covariance.covariance_matrix.resize(1);
+        zero.pose_covariance.covariance_matrix[0] = NAN;
+        
         auto ret = mocap.set_vision_position_estimate(zero);
         
         if (ret == Mocap::Result::NoSystem)
