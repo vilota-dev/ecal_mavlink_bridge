@@ -29,3 +29,16 @@ target_link_libraries(test_timesync
     spdlog::spdlog
     # ... Any other linked libraries
 )
+
+# Specify your app's executable name, and list of source files used to create it.
+add_executable(send_vision_position_estimate
+    src/send_vision_position_estimate.cpp
+    # ... any other source files
+)
+
+# Specify your app's executable name and a list of linked libraries
+target_link_libraries(send_vision_position_estimate
+    MAVSDK::mavsdk             #All apps link against mavsdk library
+    spdlog::spdlog
+    # ... Any other linked libraries
+)
