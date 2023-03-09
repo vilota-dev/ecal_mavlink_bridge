@@ -75,6 +75,8 @@ int main(int argc, char** argv)
         return 1;
     }
 
+    system->enable_timesync();
+
     // Instantiate plugins.
     auto telemetry = Telemetry{system};
 
@@ -100,6 +102,7 @@ int main(int argc, char** argv)
 
     while (true) {
         std::this_thread::sleep_for(std::chrono::seconds(1));
+        spdlog::info("system steady time now {}", std::chrono::steady_clock::now().time_since_epoch().count());
     }
 
     
