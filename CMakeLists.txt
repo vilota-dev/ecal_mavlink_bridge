@@ -106,6 +106,8 @@ EXPORT EcalOdometryMavlinkBridgeTargets
 # ARCHIVE DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
 )
 set_target_properties(ecal_odometry_mavlink_bridge PROPERTIES INSTALL_RPATH "$ORIGIN/../lib" )
+set_target_properties(test_timesync PROPERTIES INSTALL_RPATH "$ORIGIN/../lib" )
+set_target_properties(send_vision_position_estimate PROPERTIES INSTALL_RPATH "$ORIGIN/../lib" )
 
 # hardcode is easier to manage, than automation script
 file(GLOB SDK_TO_INSTALL "${cmake_config_DIR}/../libmavsdk.so*")
