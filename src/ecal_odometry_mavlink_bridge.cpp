@@ -171,6 +171,13 @@ int main(int argc, char** argv)
     // Instantiate plugins.
     auto telemetry = Telemetry{system};
 
+    spdlog::info("wait for timesync to complete...");
+    while (true) {
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        if (system->is_timesync_converged())
+            break;
+    }
+
     telemetry.subscribe_position_velocity_ned(
         [] (Telemetry::PositionVelocityNed local_position) {
 
