@@ -76,6 +76,7 @@ capnp_generate_cpp(CAPNP_SRCS CAPNP_HDRS
     thirdparty/ecal-common/src/capnp/vector3d.capnp
     thirdparty/ecal-common/src/capnp/twist3.capnp
     thirdparty/ecal-common/src/capnp/odometry3d.capnp
+    thirdparty/ecal-common/src/capnp/mavstate.capnp
 )
 
 include_directories(

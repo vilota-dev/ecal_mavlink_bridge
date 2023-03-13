@@ -7,11 +7,11 @@
 #include <ecal/ecal.h>
 // #include <ecal/msg/capnproto/helper.h>
 #include <ecal/msg/capnproto/subscriber.h>
-// #include <ecal/msg/capnproto/publisher.h>
+#include <ecal/msg/capnproto/publisher.h>
 
 
 #include <capnp/odometry3d.capnp.h>
-
+#include <capnp/mavstate.capnp.h>
 
 #include <iostream>
 #include <chrono>
@@ -142,6 +142,106 @@ class MavlinkOdometrySender {
     uint64_t count;
 };
 
+class MavStateSender {
+  public:
+    MavStateSender(std::string tf_prefix, int sendIntervalSec = 1)
+    {
+        m_pubMavState = std::make_shared<eCAL::capnproto::CPublisher<ecal::MavState>>();
+        m_pubMavState->Create(tf_prefix + "mav_state");
+        m_initialised = false;
+        m_seq = 0;
+
+        m_senderThread = std::thread(&MavStateSender::senderThread, this, sendIntervalSec);
+
+        // initial value
+        ecal::MavState::Builder msg = m_pubMavState->GetBuilder();
+        msg.setModePX4(ecal::MavState::FlightModePX4::UNKNOWN);
+    }
+
+    void updateArmStatus(bool armed)
+    {
+        std::lock_guard<std::mutex> lock(m_mutexMavState);
+        ecal::MavState::Builder msg = m_pubMavState->GetBuilder();
+
+        std::uint64_t tns = std::chrono::steady_clock::now().time_since_epoch().count();
+
+        if (msg.getArmed() != armed)
+        {
+            spdlog::warn("arm status update to {}", armed);
+        }
+
+        msg.setArmed(armed);
+
+        if (msg.getHeader().getStamp() < tns)
+            msg.getHeader().setStamp(tns);
+        else
+            spdlog::warn("tns regression on flight mode update, from {} to {}", msg.getHeader().getStamp(), tns);
+
+        m_initialised = true;
+    }
+
+    void updateFlightMode(Telemetry::FlightMode mode)
+    {
+        std::lock_guard<std::mutex> lock(m_mutexMavState);
+        ecal::MavState::Builder msg = m_pubMavState->GetBuilder();
+
+        std::uint64_t tns = std::chrono::steady_clock::now().time_since_epoch().count();
+
+        const auto lastMode = msg.getModePX4();
+
+        if (mode == Telemetry::FlightMode::Manual)
+            msg.setModePX4(ecal::MavState::FlightModePX4::MANUAL);
+        else if (mode == Telemetry::FlightMode::Altctl)
+            msg.setModePX4(ecal::MavState::FlightModePX4::ALTITUDE);
+        else if (mode == Telemetry::FlightMode::Posctl)
+            msg.setModePX4(ecal::MavState::FlightModePX4::POSITION);
+        else if (mode == Telemetry::FlightMode::Land)
+            msg.setModePX4(ecal::MavState::FlightModePX4::LAND);
+        else if (mode == Telemetry::FlightMode::Offboard)
+            msg.setModePX4(ecal::MavState::FlightModePX4::OFFBOARD);
+        else {
+            spdlog::warn("flight mode not recognised {}", mode);
+            std::cout << mode << std::endl;
+        }
+
+        if (lastMode != msg.getModePX4())
+            spdlog::warn("flight mode changes to {}", msg.getModePX4());
+
+        if (msg.getHeader().getStamp() < tns)
+            msg.getHeader().setStamp(tns);
+        else
+            spdlog::warn("tns regression on flight mode update, from {} to {}", msg.getHeader().getStamp(), tns);
+
+        m_initialised = true;
+    }
+    
+
+  private:
+    
+    bool m_initialised;
+    std::mutex m_mutexMavState;
+    std::shared_ptr<eCAL::capnproto::CPublisher<ecal::MavState>> m_pubMavState;
+    std::thread m_senderThread;
+    std::uint64_t m_seq;
+
+    void senderThread(int16_t interval) {
+        while (eCAL::Ok()) {
+            if (m_initialised)
+            {
+                std::lock_guard<std::mutex> lock(m_mutexMavState);
+
+                ecal::MavState::Builder msg = m_pubMavState->GetBuilder();
+                msg.getHeader().setSeq(m_seq);
+
+                m_pubMavState->Send();
+
+                m_seq++;
+            }
+            std::this_thread::sleep_for(seconds(interval));
+        }
+    }
+};
+
 
 
 int main(int argc, char** argv)
@@ -193,6 +293,22 @@ int main(int argc, char** argv)
             spdlog::info("{} odometry received at host: {} {} {} ", time_usec, 
                 odometry_data.position_body.x_m, odometry_data.position_body.y_m, odometry_data.position_body.z_m);
     });
+
+    // Create eCAL publisher of mav status
+
+    MavStateSender mavStateSender(tf_prefix, 1);
+
+    telemetry.subscribe_armed(
+        [&mavStateSender, system] (bool armed) {
+            mavStateSender.updateArmStatus(armed);
+        }
+    );
+
+    telemetry.subscribe_flight_mode(
+        [&mavStateSender, system] (Telemetry::FlightMode mode) {
+            mavStateSender.updateFlightMode(mode);
+        }
+    );
 
 
     MavlinkOdometrySender mavOdometrySender{system};
