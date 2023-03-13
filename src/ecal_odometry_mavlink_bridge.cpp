@@ -204,8 +204,11 @@ class MavStateSender {
             std::cout << mode << std::endl;
         }
 
-        if (lastMode != msg.getModePX4())
+        if (lastMode != msg.getModePX4()) {
             spdlog::warn("flight mode changes to {}", msg.getModePX4());
+            std::cout << mode << std::endl;
+        }
+            
 
         if (msg.getHeader().getStamp() < tns)
             msg.getHeader().setStamp(tns);
@@ -278,20 +281,38 @@ int main(int argc, char** argv)
             break;
     }
 
-    telemetry.subscribe_position_velocity_ned(
-        [] (Telemetry::PositionVelocityNed local_position) {
+    std::uint64_t last_local_pos = 0;
 
-            spdlog::info("local position ned: {}, {}, {}", local_position.position.north_m, 
-            local_position.position.east_m, local_position.position.down_m);
+    telemetry.subscribe_position_velocity_ned(
+        [&] (Telemetry::PositionVelocityNed local_position) {
+
+            std::uint64_t tns = std::chrono::steady_clock::now().time_since_epoch().count();
+
+            if (tns - last_local_pos > 2e9) {
+                spdlog::info("local position ned received: {}, {}, {}", local_position.position.north_m, 
+                    local_position.position.east_m, local_position.position.down_m);
+
+                last_local_pos =  tns;
+            }
 
         }
     );
 
+    std::uint64_t last_odometry = 0;
     telemetry.subscribe_odometry(
-        [system] (Telemetry::Odometry odometry_data) {
-            uint64_t time_usec = odometry_data.time_usec - system->get_timesync_offset_ns() / 1e3;
-            spdlog::info("{} odometry received at host: {} {} {} ", time_usec, 
-                odometry_data.position_body.x_m, odometry_data.position_body.y_m, odometry_data.position_body.z_m);
+        [&] (Telemetry::Odometry odometry_data) {
+
+            std::uint64_t tns = std::chrono::steady_clock::now().time_since_epoch().count();
+
+            if (tns - last_odometry > 2e9) {
+                uint64_t time_usec = odometry_data.time_usec - system->get_timesync_offset_ns() / 1e3;
+                spdlog::info("{} odometry received at host: {} {} {} ", time_usec, 
+                    odometry_data.position_body.x_m, odometry_data.position_body.y_m, odometry_data.position_body.z_m);
+
+                last_odometry =  tns;
+            }
+
+            
     });
 
     // Create eCAL publisher of mav status
