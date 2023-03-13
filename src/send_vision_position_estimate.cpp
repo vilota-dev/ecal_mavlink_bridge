@@ -36,14 +36,14 @@ std::shared_ptr<System> get_system(Mavsdk& mavsdk)
 
     // We wait for new systems to be discovered, once we find one that has an
     // autopilot, we decide to use it.
-    mavsdk.subscribe_on_new_system([&mavsdk, &prom]() {
+    Mavsdk::NewSystemHandle handle = mavsdk.subscribe_on_new_system([&mavsdk, &prom, &handle]() {
         auto system = mavsdk.systems().back();
 
         if (system->has_autopilot()) {
             std::cout << "Discovered autopilot\n";
 
             // Unsubscribe again as we only want to find one system.
-            mavsdk.subscribe_on_new_system(nullptr);
+            mavsdk.unsubscribe_on_new_system(handle);
             prom.set_value(system);
         }
     });
@@ -109,6 +109,13 @@ int main(int argc, char** argv)
 
     // Instantiate plugins.
     auto telemetry = Telemetry{system};
+
+    spdlog::info("wait for timesync to complete...");
+    while (true) {
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        if (system->is_timesync_converged())
+            break;
+    }
 
     telemetry.subscribe_position_velocity_ned(
         [] (Telemetry::PositionVelocityNed local_position) {
