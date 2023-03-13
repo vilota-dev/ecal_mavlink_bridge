@@ -89,7 +89,7 @@ class MavlinkOdometrySender {
 
     bool Send(uint64_t tns, Mocap::PositionBody& p, Mocap::Quaternion& q)
     {
-        m_odom_msg.time_usec = tns;
+        m_odom_msg.time_usec = tns / 1e3;
         m_odom_msg.position_body = p;
         m_odom_msg.q = q;
 
