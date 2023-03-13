@@ -98,12 +98,12 @@ class MavlinkOdometrySender {
         if (ret == Mocap::Result::NoSystem)
             spdlog::warn("no system connected");
         else if (ret == Mocap::Result::Success)
-            spdlog::info("mocap sent success");
+            spdlog::debug("mocap sent success");
         else
             spdlog::warn("mocap send other error {}", ret);
         
         if (count % 100 == 0)
-            std::cout << "vision position estimate: " << m_odom_msg << std::endl;
+            std::cout << "mavlink odometry message sent to px4: " << m_odom_msg << std::endl;
         count++;
 
         return (ret == Mocap::Result::Success);
@@ -131,9 +131,13 @@ class MavlinkOdometrySender {
         q.y = orientation.getY();
         q.z = orientation.getZ();
 
-        Send(tns, p, q);
+        if (Send(tns, p, q)) {
+            std::uint64_t nowTns = std::chrono::steady_clock::now().time_since_epoch().count();
+            spdlog::info("odometry of seq = {}, ts = {} sent at host ts = {}, latency = {} ms", seq, tns, nowTns, (nowTns - tns) / 1e6);
+        }else
+            spdlog::warn("failed to send odometry over mavlinke to px4");
 
-        spdlog::info("odometry seq = {}", seq);
+
     }
 
   private:
