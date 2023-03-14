@@ -24,6 +24,8 @@ using namespace mavsdk;
 using std::chrono::seconds;
 using std::chrono::milliseconds;
 
+constexpr int AUTOPILOT_HEARTBEAT_TIMEOUT_S = 7;
+
 #define UNUSED(x) (void)(x)
 
 void usage(const std::string& bin_name)
@@ -77,8 +79,8 @@ std::shared_ptr<System> get_system(Mavsdk& mavsdk)
 
     // We usually receive heartbeats at 1Hz, therefore we should find a
     // system after around 3 seconds max, surely.
-    if (fut.wait_for(seconds(3)) == std::future_status::timeout) {
-        std::cerr << "No autopilot found.\n";
+    if (fut.wait_for(seconds(AUTOPILOT_HEARTBEAT_TIMEOUT_S)) == std::future_status::timeout) {
+        std::cerr << "No autopilot found after seconds: "<< AUTOPILOT_HEARTBEAT_TIMEOUT_S << std::endl;
         return {};
     }
 
