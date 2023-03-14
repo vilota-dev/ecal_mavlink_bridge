@@ -335,6 +335,12 @@ int main(int argc, char** argv)
         }
     );
 
+    telemetry.subscribe_battery(
+        [] (Telemetry::Battery battery_data) {
+            spdlog::info("battery voltage = {}, {}%", battery_data.voltage_v, battery_data.remaining_percent);
+        }
+    );
+
 
     MavlinkOdometrySender mavOdometrySender{system};
 

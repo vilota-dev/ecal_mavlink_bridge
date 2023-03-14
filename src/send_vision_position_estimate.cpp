@@ -75,7 +75,7 @@ void run_fake_odometry_send(std::shared_ptr<System> system)
         if (ret == Mocap::Result::NoSystem)
             spdlog::warn("no system connected");
         else if (ret == Mocap::Result::Success)
-            spdlog::info("mocap sent success");
+            spdlog::debug("mocap sent success");
         else
             spdlog::warn("mocap send other error {}", ret);
         count++;

@@ -109,6 +109,12 @@ int main(int argc, char** argv)
         }
     );
 
+    telemetry.subscribe_battery(
+        [] (Telemetry::Battery battery_data) {
+            spdlog::info("battery voltage = {}, {}%", battery_data.voltage_v, battery_data.remaining_percent);
+        }
+    );
+
     while (true) {
         std::this_thread::sleep_for(std::chrono::seconds(1));
         spdlog::info("system steady time now {} ms", std::chrono::steady_clock::now().time_since_epoch().count() / 1e6);
