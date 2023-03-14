@@ -327,7 +327,7 @@ int main(int argc, char** argv)
 
             std::uint64_t tns = std::chrono::steady_clock::now().time_since_epoch().count();
 
-            if (tns - last_local_pos > 2e9) {
+            if (tns - last_local_pos > 5e9) {
                 spdlog::info("local position ned received: {}, {}, {}", local_position.position.north_m, 
                     local_position.position.east_m, local_position.position.down_m);
 
@@ -343,7 +343,7 @@ int main(int argc, char** argv)
 
             std::uint64_t tns = std::chrono::steady_clock::now().time_since_epoch().count();
 
-            if (tns - last_odometry > 2e9) {
+            if (tns - last_odometry > 5e9) {
                 uint64_t time_usec = odometry_data.time_usec - system->get_timesync_offset_ns() / 1e3;
                 spdlog::info("{} odometry received at host: {} {} {} ", time_usec, 
                     odometry_data.position_body.x_m, odometry_data.position_body.y_m, odometry_data.position_body.z_m);
