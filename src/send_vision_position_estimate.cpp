@@ -113,6 +113,8 @@ int main(int argc, char** argv)
     }
 
     Mavsdk mavsdk;
+    Mavsdk::Configuration configuration{Mavsdk::Configuration::UsageType::CompanionComputer};
+    mavsdk.set_configuration(configuration); // default system id to 1, and component id to 195
     ConnectionResult connection_result = mavsdk.add_any_connection(argv[1]);
 
     if (connection_result != ConnectionResult::Success) {
