@@ -153,7 +153,8 @@ class MavlinkOdometrySender {
 
         if (Send(tns, p, q)) {
             std::uint64_t nowTns = std::chrono::steady_clock::now().time_since_epoch().count();
-            spdlog::info("odometry of seq = {}, ts = {} sent at host ts = {}, latency = {} ms", seq, tns, nowTns, (nowTns - tns) / 1e6);
+            
+            spdlog::debug("odometry of seq = {}, ts = {} sent at host ts = {}, latency = {} ms", seq, tns, nowTns, (nowTns - tns) / 1e6);
         }else
             spdlog::warn("failed to send odometry over mavlinke to px4");
 
