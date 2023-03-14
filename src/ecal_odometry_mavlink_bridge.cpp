@@ -36,20 +36,20 @@ void usage(const std::string& bin_name)
               << "For example, to connect to the simulator use URL: udp://:14540\n";
 }
 
-void send_heartbeat(MavlinkPassthrough& mavlink_passthrough, uint8_t system_id, bool active)
-{
-    mavlink_message_t message;
-    mavlink_msg_heartbeat_pack(
-        system_id,
-        MAV_COMP_ID_VISUAL_INERTIAL_ODOMETRY,
-        &message,
-        MAV_TYPE_ONBOARD_CONTROLLER,
-        MAV_AUTOPILOT_INVALID,
-        0,
-        0,
-        active ? MAV_STATE_ACTIVE : MAV_STATE_UNINIT); //
-    mavlink_passthrough.send_message(message);
-}
+// void send_heartbeat(MavlinkPassthrough& mavlink_passthrough, uint8_t system_id, bool active)
+// {
+//     mavlink_message_t message;
+//     mavlink_msg_heartbeat_pack(
+//         system_id,
+//         MAV_COMP_ID_VISUAL_INERTIAL_ODOMETRY,
+//         &message,
+//         MAV_TYPE_ONBOARD_CONTROLLER,
+//         MAV_AUTOPILOT_INVALID,
+//         0,
+//         0,
+//         active ? MAV_STATE_ACTIVE : MAV_STATE_UNINIT); //
+//     mavlink_passthrough.send_message(message);
+// }
 
 std::shared_ptr<System> get_system(Mavsdk& mavsdk)
 {
@@ -299,19 +299,19 @@ int main(int argc, char** argv)
     auto telemetry = Telemetry{system};
 
     // send heartbeat
-    MavlinkPassthrough mavlink_passthrough{system};
+    // MavlinkPassthrough mavlink_passthrough{system};
 
-    std::thread(
-        [&mavlink_passthrough] (uint8_t system_id) {
+    // std::thread(
+    //     [&mavlink_passthrough] (uint8_t system_id) {
 
-            while(eCAL::Ok()) {
-                send_heartbeat(mavlink_passthrough, system_id, true);
-                std::this_thread::sleep_for(std::chrono::seconds(1));
-            }
+    //         while(eCAL::Ok()) {
+    //             send_heartbeat(mavlink_passthrough, system_id, true);
+    //             std::this_thread::sleep_for(std::chrono::seconds(1));
+    //         }
             
-        },
-        system->get_system_id()
-    );
+    //     },
+    //     system->get_system_id()
+    // );
 
     spdlog::info("wait for timesync to complete...");
     while (true) {
