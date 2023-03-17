@@ -282,7 +282,7 @@ int main(int argc, char** argv)
     }
 
     Mavsdk mavsdk;
-    Mavsdk::Configuration configuration{Mavsdk::Configuration::UsageType::CompanionComputer}; // default system id to 1, and component id to 195
+    Mavsdk::Configuration configuration{Mavsdk::Configuration::UsageType::GroundStation}; // default system id to 1, we need GCS mode so we can receive mavlink logs
     // configuration.set_component_id(MAV_COMP_ID_VISUAL_INERTIAL_ODOMETRY); // This should be avoided, as it will prevent PX4 sending by info, warning, debug etc
     mavsdk.set_configuration(configuration); 
     ConnectionResult connection_result = mavsdk.add_any_connection(argv[1]);
