@@ -339,11 +339,14 @@ int main(int argc, char** argv)
             break;
     }
 
-    std::uint64_t last_local_pos = 0;
+    std::shared_ptr<eCAL::capnproto::CPublisher<ecal::Odometry3d>> pubOdometry;
 
+
+    std::uint64_t last_local_pos = 0;
     telemetry.subscribe_position_velocity_ned(
         [&] (Telemetry::PositionVelocityNed local_position) {
-
+            
+            // TODO: currently there is no ts data in mavsdk on position
             std::uint64_t tns = std::chrono::steady_clock::now().time_since_epoch().count();
 
             if (tns - last_local_pos > 5e9) {
@@ -353,6 +356,42 @@ int main(int argc, char** argv)
                 last_local_pos =  tns;
             }
 
+            if (!pubOdometry) {
+                std::cout << "publisher ecal for px4 local position created" << std::endl;
+                pubOdometry = std::make_shared<eCAL::capnproto::CPublisher<ecal::Odometry3d>>();
+
+                pubOdometry->Create(tf_prefix + "local_position_ned");
+
+                ecal::Odometry3d::Builder msg = pubOdometry->GetBuilder();
+                msg.setBodyFrame(ecal::Odometry3d::BodyFrame::NED);
+                msg.setReferenceFrame(ecal::Odometry3d::ReferenceFrame::NED);
+                msg.setVelocityFrame(ecal::Odometry3d::VelocityFrame::NONE);
+
+                msg.getHeader().setSeq(0);
+
+                msg.getHeader().setClockDomain(ecal::Header::ClockDomain::MONOTONIC);
+            }
+
+            ecal::Odometry3d::Builder msg = pubOdometry->GetBuilder();
+            auto header = msg.getHeader();
+            header.setStamp(tns);
+            header.setSeq(header.getSeq() + 1);
+
+            auto tele_quat = telemetry.attitude_quaternion();
+            
+            auto orientation = msg.getPose().getOrientation();
+            orientation.setW(tele_quat.w);
+            orientation.setX(tele_quat.x);
+            orientation.setY(tele_quat.y);
+            orientation.setZ(tele_quat.z);
+
+            auto position = msg.getPose().getPosition();
+            position.setX(local_position.position.north_m);
+            position.setY(local_position.position.east_m);
+            position.setZ(local_position.position.down_m);
+
+
+            pubOdometry->Send();
         }
     );
 
