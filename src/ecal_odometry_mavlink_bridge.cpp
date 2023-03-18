@@ -20,6 +20,8 @@
 #include <memory>
 #include <thread>
 
+#include <sophus/se3.hpp>
+
 using namespace mavsdk;
 using std::chrono::seconds;
 using std::chrono::milliseconds;
@@ -169,16 +171,16 @@ class MavlinkOdometrySender {
     uint64_t count;
 };
 
-class MavStateSender {
+class EcalMavStateSender {
   public:
-    MavStateSender(std::string tf_prefix, int sendIntervalSec = 1)
+    EcalMavStateSender(std::string tf_prefix, int sendIntervalSec = 1)
     {
         m_pubMavState = std::make_shared<eCAL::capnproto::CPublisher<ecal::MavState>>();
         m_pubMavState->Create(tf_prefix + "mav_state");
         m_initialised = false;
         m_seq = 0;
 
-        m_senderThread = std::thread(&MavStateSender::senderThread, this, sendIntervalSec);
+        m_senderThread = std::thread(&EcalMavStateSender::senderThread, this, sendIntervalSec);
 
         // initial value
         ecal::MavState::Builder msg = m_pubMavState->GetBuilder();
@@ -272,6 +274,137 @@ class MavStateSender {
     }
 };
 
+class EcalLocalPositionSender {
+
+  public:
+    EcalLocalPositionSender(std::string tf_prefix) {
+        std::cout << "publisher ecal for px4 local position created" << std::endl;
+
+        // ned publisher
+        {
+            m_pubLocalPositionNED = std::make_shared<eCAL::capnproto::CPublisher<ecal::Odometry3d>>();
+            m_pubLocalPositionNED->Create(tf_prefix + "local_position_ned");
+
+            ecal::Odometry3d::Builder msg = m_pubLocalPositionNED->GetBuilder();
+            msg.setBodyFrame(ecal::Odometry3d::BodyFrame::NED);
+            msg.setReferenceFrame(ecal::Odometry3d::ReferenceFrame::NED);
+            msg.setVelocityFrame(ecal::Odometry3d::VelocityFrame::NONE);
+
+            msg.getHeader().setSeq(0);
+
+            msg.getHeader().setClockDomain(ecal::Header::ClockDomain::MONOTONIC);
+        }
+
+        // nwu publisher
+        {
+            m_pubLocalPositionNWU = std::make_shared<eCAL::capnproto::CPublisher<ecal::Odometry3d>>();
+            m_pubLocalPositionNWU->Create(tf_prefix + "local_position");
+
+            ecal::Odometry3d::Builder msg = m_pubLocalPositionNWU->GetBuilder();
+
+            msg.setBodyFrame(ecal::Odometry3d::BodyFrame::NWU);
+            msg.setReferenceFrame(ecal::Odometry3d::ReferenceFrame::NWU);
+            msg.setVelocityFrame(ecal::Odometry3d::VelocityFrame::NONE);
+
+            msg.getHeader().setSeq(0);
+
+            msg.getHeader().setClockDomain(ecal::Header::ClockDomain::MONOTONIC);
+        }
+
+    }
+
+    void callback(Telemetry::PositionVelocityNed local_position, Telemetry::Quaternion attitude_quat) {
+        std::uint64_t tns = std::chrono::steady_clock::now().time_since_epoch().count();
+
+        // ned publisher
+        {
+            ecal::Odometry3d::Builder msg = m_pubLocalPositionNED->GetBuilder();
+            auto header = msg.getHeader();
+            header.setStamp(tns);
+            header.setSeq(header.getSeq() + 1);
+            
+            auto orientation = msg.getPose().getOrientation();
+            orientation.setW(attitude_quat.w);
+            orientation.setX(attitude_quat.x);
+            orientation.setY(attitude_quat.y);
+            orientation.setZ(attitude_quat.z);
+
+            auto position = msg.getPose().getPosition();
+            position.setX(local_position.position.north_m);
+            position.setY(local_position.position.east_m);
+            position.setZ(local_position.position.down_m);
+
+
+            m_pubLocalPositionNED->Send();
+        }
+
+        // nwu publisher
+        {
+            Eigen::Vector3d position_ned = {
+                local_position.position.north_m,
+                local_position.position.east_m,
+                local_position.position.down_m
+            };
+
+            Eigen::Quaterniond orientation_ned = {
+                attitude_quat.w,
+                attitude_quat.x,
+                attitude_quat.y,
+                attitude_quat.z
+            };
+
+            Sophus::SE3d T_ned;
+
+            T_ned.translation() = position_ned;
+            T_ned.setQuaternion(orientation_ned);
+
+            // transform ned to nwu
+            Sophus::Matrix3d R_ned_nwu;
+            // change of coordinates from NWU to NED
+            Sophus::SE3d T_ned_nwu;
+            R_ned_nwu << 1, 0, 0, 0, -1, 0, 0, 0, -1;
+            T_ned_nwu.setRotationMatrix(R_ned_nwu);
+            T_ned_nwu.translation().setZero();
+
+            Sophus::SE3d T_nwu_nwu;
+            T_nwu_nwu = T_ned_nwu.inverse() * T_ned * T_ned_nwu;
+
+            {
+
+                ecal::Odometry3d::Builder msg = m_pubLocalPositionNWU->GetBuilder();
+                auto header = msg.getHeader();
+                header.setStamp(tns);
+                header.setSeq(header.getSeq() + 1);
+                
+                auto quat = T_nwu_nwu.unit_quaternion();
+                auto orientation = msg.getPose().getOrientation();
+                orientation.setW(quat.w());
+                orientation.setX(quat.x());
+                orientation.setY(quat.y());
+                orientation.setZ(quat.z());
+
+                auto position = msg.getPose().getPosition();
+                position.setX(T_nwu_nwu.translation().x());
+                position.setY(T_nwu_nwu.translation().y());
+                position.setZ(T_nwu_nwu.translation().z());
+
+
+                m_pubLocalPositionNWU->Send();
+
+            }
+
+        }
+
+
+        
+    }
+
+  private:
+    
+    std::shared_ptr<eCAL::capnproto::CPublisher<ecal::Odometry3d>> m_pubLocalPositionNED, m_pubLocalPositionNWU;
+
+
+};
 
 
 int main(int argc, char** argv)
@@ -342,56 +475,13 @@ int main(int argc, char** argv)
     std::shared_ptr<eCAL::capnproto::CPublisher<ecal::Odometry3d>> pubOdometry;
 
 
-    std::uint64_t last_local_pos = 0;
+    EcalLocalPositionSender ecalLocalPositionSender(tf_prefix);
     telemetry.subscribe_position_velocity_ned(
         [&] (Telemetry::PositionVelocityNed local_position) {
-            
-            // TODO: currently there is no ts data in mavsdk on position
-            std::uint64_t tns = std::chrono::steady_clock::now().time_since_epoch().count();
-
-            if (tns - last_local_pos > 5e9) {
-                spdlog::info("local position ned received: {}, {}, {}", local_position.position.north_m, 
-                    local_position.position.east_m, local_position.position.down_m);
-
-                last_local_pos =  tns;
-            }
-
-            if (!pubOdometry) {
-                std::cout << "publisher ecal for px4 local position created" << std::endl;
-                pubOdometry = std::make_shared<eCAL::capnproto::CPublisher<ecal::Odometry3d>>();
-
-                pubOdometry->Create(tf_prefix + "local_position_ned");
-
-                ecal::Odometry3d::Builder msg = pubOdometry->GetBuilder();
-                msg.setBodyFrame(ecal::Odometry3d::BodyFrame::NED);
-                msg.setReferenceFrame(ecal::Odometry3d::ReferenceFrame::NED);
-                msg.setVelocityFrame(ecal::Odometry3d::VelocityFrame::NONE);
-
-                msg.getHeader().setSeq(0);
-
-                msg.getHeader().setClockDomain(ecal::Header::ClockDomain::MONOTONIC);
-            }
-
-            ecal::Odometry3d::Builder msg = pubOdometry->GetBuilder();
-            auto header = msg.getHeader();
-            header.setStamp(tns);
-            header.setSeq(header.getSeq() + 1);
 
             auto tele_quat = telemetry.attitude_quaternion();
-            
-            auto orientation = msg.getPose().getOrientation();
-            orientation.setW(tele_quat.w);
-            orientation.setX(tele_quat.x);
-            orientation.setY(tele_quat.y);
-            orientation.setZ(tele_quat.z);
 
-            auto position = msg.getPose().getPosition();
-            position.setX(local_position.position.north_m);
-            position.setY(local_position.position.east_m);
-            position.setZ(local_position.position.down_m);
-
-
-            pubOdometry->Send();
+            ecalLocalPositionSender.callback(local_position, tele_quat);
         }
     );
 
@@ -414,17 +504,17 @@ int main(int argc, char** argv)
 
     // Create eCAL publisher of mav status
 
-    MavStateSender mavStateSender(tf_prefix, 1);
+    EcalMavStateSender EcalMavStateSender(tf_prefix, 1);
 
     telemetry.subscribe_armed(
-        [&mavStateSender, system] (bool armed) {
-            mavStateSender.updateArmStatus(armed);
+        [&EcalMavStateSender, system] (bool armed) {
+            EcalMavStateSender.updateArmStatus(armed);
         }
     );
 
     telemetry.subscribe_flight_mode(
-        [&mavStateSender, system] (Telemetry::FlightMode mode) {
-            mavStateSender.updateFlightMode(mode);
+        [&EcalMavStateSender, system] (Telemetry::FlightMode mode) {
+            EcalMavStateSender.updateFlightMode(mode);
         }
     );
 

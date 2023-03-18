@@ -15,10 +15,11 @@ endif()
 
 message(WARNING "CMAKE_BUILD_TYPE = ${CMAKE_BUILD_TYPE}")
 
-set(CMAKE_CXX_FLAGS_DEBUG  "-O0 -g")          # cmake default: "-g"
-set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -g ")  # cmake default: "-O2 -g -DNDEBUG"
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")     # cmake default: "-O3 -DNDEBUG"
+set(CMAKE_CXX_FLAGS_DEBUG  "-O0 -g -DEIGEN_INITIALIZE_MATRICES_BY_NAN")          # cmake default: "-g"
+set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -g -DEIGEN_INITIALIZE_MATRICES_BY_NAN")  # cmake default: "-O2 -g -DNDEBUG"
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")                                      # cmake default: "-O3 -DNDEBUG"
 set(CMAKE_CXX_FLAGS_RELWITHASSERT "-O3")
+set(CMAKE_CXX_FLAGS_RELWITHEIGENNAN  "-O3 -DEIGEN_INITIALIZE_MATRICES_BY_NAN")   # enable nan initialisation for eigen
 
 # Enable strict handling of warnings
 add_definitions("-Wall -Wextra -Werror")
@@ -81,6 +82,8 @@ capnp_generate_cpp(CAPNP_SRCS CAPNP_HDRS
 
 include_directories(
     ${CMAKE_CURRENT_BINARY_DIR}/ecal-common/src/ # generated headers from capnp
+    thirdparty/basalt-headers/thirdparty/eigen
+    thirdparty/basalt-headers/thirdparty/Sophus
 )
 
 # Specify your app's executable name, and list of source files used to create it.
