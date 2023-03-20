@@ -104,9 +104,9 @@ commands:
             sudo apt-get update
             sudo apt-get install ecal
       - run:
-          name: Install spdlog dependency
+          name: Install spdlog / fmt dependency
           command: |
-            sudo apt install libspdlog-dev
+            sudo apt install libspdlog-dev libfmt-dev
       - run:
           name: Build ecal_mavlink_bridge (Release)
           command: |
