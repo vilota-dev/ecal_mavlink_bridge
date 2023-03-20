@@ -119,6 +119,8 @@ class MavlinkOdometrySender {
         m_odom_msg.q = q;
 
         auto ret = m_mocap->set_odometry(m_odom_msg);
+        spdlog::info("{}",count);
+        spdlog::info("q.w = {}, q.x = {}, q.y = {}, q.z = {}", q.w, q.x, q.y, q.z);
 
         if (ret == Mocap::Result::NoSystem)
             spdlog::warn("no system connected");
@@ -127,8 +129,10 @@ class MavlinkOdometrySender {
         else
             spdlog::warn("mocap send other error {}", ret);
         
-        if (count % 100 == 0)
-            std::cout << "mavlink odometry message sent to px4: " << m_odom_msg << std::endl;
+        if (count % 100 == 0){
+            std::cout << "mavlink odometry message sent to px4:" << m_odom_msg << std::endl;
+        }
+        
         count++;
 
         return (ret == Mocap::Result::Success);
@@ -156,10 +160,13 @@ class MavlinkOdometrySender {
         q.y = orientation.getY();
         q.z = orientation.getZ();
 
+        
+        
         if (Send(tns, p, q)) {
+            spdlog::info("Managed to subscribe ecal here");
             std::uint64_t nowTns = std::chrono::steady_clock::now().time_since_epoch().count();
             
-            spdlog::debug("odometry of seq = {}, ts = {} sent at host ts = {}, latency = {} ms", seq, tns, nowTns, (nowTns - tns) / 1e6);
+            spdlog::info("odometry of seq = {}, ts = {} sent at host ts = {}, latency = {} ms", seq, tns, nowTns, (nowTns - tns) / 1e6);
         }else
             spdlog::warn("failed to send odometry over mavlinke to px4");
 
@@ -323,6 +330,7 @@ class EcalLocalPositionSender {
             header.setSeq(header.getSeq() + 1);
             
             auto orientation = msg.getPose().getOrientation();
+            // spdlog::info("received orientation = {}", orientation.());
             orientation.setW(attitude_quat.w);
             orientation.setX(attitude_quat.x);
             orientation.setY(attitude_quat.y);
@@ -351,12 +359,13 @@ class EcalLocalPositionSender {
                 attitude_quat.y,
                 attitude_quat.z
             };
-
+            spdlog::info("received orientation_ned = {}", orientation_ned.coeffs());
             Sophus::SE3d T_ned;
-
+            spdlog::info("ABC");
             T_ned.translation() = position_ned;
+            spdlog::info("DEF");
             T_ned.setQuaternion(orientation_ned);
-
+            spdlog::info("HIJ");
             // transform ned to nwu
             Sophus::Matrix3d R_ned_nwu;
             // change of coordinates from NWU to NED
@@ -475,14 +484,14 @@ int main(int argc, char** argv)
 
 
     EcalLocalPositionSender ecalLocalPositionSender(tf_prefix);
-    telemetry.subscribe_position_velocity_ned(
-        [&] (Telemetry::PositionVelocityNed local_position) {
+    // telemetry.subscribe_position_velocity_ned(
+    //     [&] (Telemetry::PositionVelocityNed local_position) {
 
-            auto tele_quat = telemetry.attitude_quaternion();
+    //         auto tele_quat = telemetry.attitude_quaternion();
 
-            ecalLocalPositionSender.callback(local_position, tele_quat);
-        }
-    );
+    //         ecalLocalPositionSender.callback(local_position, tele_quat);
+    //     }
+    // );
 
     std::uint64_t last_odometry = 0;
     telemetry.subscribe_odometry(
