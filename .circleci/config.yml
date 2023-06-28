@@ -154,13 +154,19 @@ workflows:
     jobs:
       - build-capnproto:
           os: ubuntu2204-amd64
-          context: amd64
+          context: 
+            - amd64
+            - ubuntu2204
       - build-mavsdk:
           os: ubuntu2204-amd64
-          context: amd64
+          context: 
+            - amd64
+            - ubuntu2204
       - build-ecal-mavlink-bridge:
           os: ubuntu2204-amd64
-          context: amd64
+          context: 
+            - amd64
+            - ubuntu2204
           requires: 
             - build-capnproto
             - build-mavsdk
@@ -168,13 +174,19 @@ workflows:
     jobs:
       - build-capnproto:
           os: ubuntu2204-arm64
-          context: arm64
+          context: 
+            - arm64
+            - ubuntu2204
       - build-mavsdk:
           os: ubuntu2204-arm64
-          context: arm64
+          context: 
+            - arm64
+            - ubuntu2204
       - build-ecal-mavlink-bridge:
           os: ubuntu2204-arm64
-          context: arm64
+          context:             
+            - arm64
+            - ubuntu2204
           requires: 
             - build-capnproto
             - build-mavsdk
@@ -182,13 +194,19 @@ workflows:
     jobs:
       - build-capnproto:
           os: ubuntu2004-amd64
-          context: amd64
+          context: 
+            - amd64
+            - ubuntu2004
       - build-mavsdk:
           os: ubuntu2004-amd64
-          context: amd64
+          context:
+            - amd64
+            - ubuntu2004
       - build-ecal-mavlink-bridge:
           os: ubuntu2004-amd64
-          context: amd64
+          context:
+            - amd64
+            - ubuntu2004
           requires: 
             - build-capnproto
             - build-mavsdk
@@ -196,13 +214,19 @@ workflows:
     jobs:
       - build-capnproto:
           os: ubuntu2004-arm64
-          context: arm64
+          context: 
+            - arm64
+            - ubuntu2004
       - build-mavsdk:
           os: ubuntu2004-arm64
-          context: arm64
+          context:
+            - arm64
+            - ubuntu2004
       - build-ecal-mavlink-bridge:
           os: ubuntu2004-arm64
-          context: arm64
+          context:
+            - arm64
+            - ubuntu2004
           requires: 
             - build-capnproto
             - build-mavsdk
