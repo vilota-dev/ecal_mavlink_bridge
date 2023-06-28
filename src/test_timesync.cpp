@@ -11,6 +11,8 @@
 #include <memory>
 #include <thread>
 
+constexpr int AUTOPILOT_HEARTBEAT_TIMEOUT_S = 7;
+
 using namespace mavsdk;
 using std::chrono::seconds;
 
@@ -32,22 +34,22 @@ std::shared_ptr<System> get_system(Mavsdk& mavsdk)
 
     // We wait for new systems to be discovered, once we find one that has an
     // autopilot, we decide to use it.
-    mavsdk.subscribe_on_new_system([&mavsdk, &prom]() {
+    Mavsdk::NewSystemHandle handle = mavsdk.subscribe_on_new_system([&mavsdk, &prom, &handle]() {
         auto system = mavsdk.systems().back();
 
         if (system->has_autopilot()) {
             std::cout << "Discovered autopilot\n";
 
             // Unsubscribe again as we only want to find one system.
-            mavsdk.subscribe_on_new_system(nullptr);
+            mavsdk.unsubscribe_on_new_system(handle);
             prom.set_value(system);
         }
     });
 
     // We usually receive heartbeats at 1Hz, therefore we should find a
     // system after around 3 seconds max, surely.
-    if (fut.wait_for(seconds(3)) == std::future_status::timeout) {
-        std::cerr << "No autopilot found.\n";
+    if (fut.wait_for(seconds(AUTOPILOT_HEARTBEAT_TIMEOUT_S)) == std::future_status::timeout) {
+        std::cerr << "No autopilot found after seconds: "<< AUTOPILOT_HEARTBEAT_TIMEOUT_S << std::endl;
         return {};
     }
 
@@ -63,6 +65,8 @@ int main(int argc, char** argv)
     }
 
     Mavsdk mavsdk;
+    Mavsdk::Configuration configuration{Mavsdk::Configuration::UsageType::GroundStation}; // default system id to 1, we need GCS mode so we can receive mavlink logs
+    mavsdk.set_configuration(configuration);
     ConnectionResult connection_result = mavsdk.add_any_connection(argv[1]);
 
     if (connection_result != ConnectionResult::Success) {
@@ -79,6 +83,13 @@ int main(int argc, char** argv)
 
     // Instantiate plugins.
     auto telemetry = Telemetry{system};
+
+    spdlog::info("wait for timesync to complete...");
+    while (true) {
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        if (system->is_timesync_converged())
+            break;
+    }
 
     telemetry.subscribe_position_velocity_ned(
         [] (Telemetry::PositionVelocityNed local_position) {
@@ -99,6 +110,12 @@ int main(int argc, char** argv)
         [system] (Telemetry::Imu imu_data) {
             uint64_t timestamp_us =  imu_data.timestamp_us - system->get_timesync_offset_ns() / 1e3;
             spdlog::info("imu highres raw_ts = {} ms,  host_ts = {} ms", imu_data.timestamp_us / 1e3, timestamp_us / 1e3);
+        }
+    );
+
+    telemetry.subscribe_battery(
+        [] (Telemetry::Battery battery_data) {
+            spdlog::info("battery voltage = {}, {}%", battery_data.voltage_v, battery_data.remaining_percent);
         }
     );
 
