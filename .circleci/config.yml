@@ -72,7 +72,7 @@ commands:
             git submodule update --init --recursive
             autoreconf -i
             ./configure
-            make -j2 check
+            make -j2  # check # skip check for now
             sudo make install
       - save_cache:
           key: *capnproto-cache
