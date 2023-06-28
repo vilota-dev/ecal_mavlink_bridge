@@ -129,6 +129,16 @@ commands:
 
 
 executors:
+  ubuntu2204-amd64: &ubuntu2204-amd64-executor
+    machine:
+      image: ubuntu-2204:current
+    resource_class: medium
+    working_directory: ~/git
+  ubuntu2204-arm64: &ubuntu2204-arm64-executor
+    machine:
+      image: ubuntu-2204:current
+    resource_class: arm.medium
+    working_directory: ~/git
   ubuntu2004-amd64: &ubuntu2004-amd64-executor
     machine:
       image: ubuntu-2004:current
@@ -141,9 +151,36 @@ executors:
     working_directory: ~/git
 
 workflows:
+  ubuntu2204-amd64:
+    jobs:
+      - build-capnproto:
+          os: ubuntu2204-amd64
+          context: amd64
+      - build-mavsdk:
+          os: ubuntu2204-amd64
+          context: amd64
+      - build-ecal-mavlink-bridge:
+          os: ubuntu2204-amd64
+          context: amd64
+          requires: 
+            - build-capnproto
+            - build-mavsdk
+  ubuntu2204-arm64:
+    jobs:
+      - build-capnproto:
+          os: ubuntu2204-arm64
+          context: arm64
+      - build-mavsdk:
+          os: ubuntu2204-arm64
+          context: arm64
+      - build-ecal-mavlink-bridge:
+          os: ubuntu2204-arm64
+          context: arm64
+          requires: 
+            - build-capnproto
+            - build-mavsdk
   ubuntu2004-amd64:
     jobs:
-
       - build-capnproto:
           os: ubuntu2004-amd64
           context: amd64
