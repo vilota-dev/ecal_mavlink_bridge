@@ -3,6 +3,7 @@
 #include <mavsdk/plugins/telemetry/telemetry.h>
 
 #include <spdlog/spdlog.h>
+#include <spdlog/fmt/ostr.h>
 
 
 #include <iostream>

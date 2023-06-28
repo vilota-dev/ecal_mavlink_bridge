@@ -29,12 +29,17 @@ if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
     set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/install" CACHE PATH "Installation Directory" FORCE)
 endif()
 
+# turn off dependency of fmt in Sophus
+add_compile_definitions(SOPHUS_USE_BASIC_LOGGING)
+
+set(CMAKE_FIND_LIBRARY_SUFFIXES ${CMAKE_STATIC_LIBRARY_SUFFIX})
+add_subdirectory(thirdparty/spdlog)
+
 # Finds MAVSDK for lacal install
 set(cmake_config_DIR "/home/$ENV{USER}/git/MAVSDK/build/install/lib/cmake")
 set(MAVSDK_DIR ${cmake_config_DIR}/MAVSDK)
 find_package(MAVSDK CONFIG REQUIRED)
 
-find_package(spdlog REQUIRED)
 
 # Specify your app's executable name, and list of source files used to create it.
 add_executable(test_timesync
@@ -63,7 +68,7 @@ target_link_libraries(send_vision_position_estimate
 )
 
 
-find_package(eCAL 5.11.3 REQUIRED)
+find_package(eCAL 5.11 REQUIRED)
 
 set(CMAKE_FIND_LIBRARY_SUFFIXES ${CMAKE_STATIC_LIBRARY_SUFFIX})
 find_package(CapnProto REQUIRED)
@@ -74,7 +79,7 @@ capnp_generate_cpp(CAPNP_SRCS CAPNP_HDRS
     thirdparty/ecal-common/src/capnp/header.capnp
     thirdparty/ecal-common/src/capnp/se3.capnp
     thirdparty/ecal-common/src/capnp/so3.capnp
-    thirdparty/ecal-common/src/capnp/vector3d.capnp
+    thirdparty/ecal-common/src/capnp/vector3.capnp
     thirdparty/ecal-common/src/capnp/twist3.capnp
     thirdparty/ecal-common/src/capnp/odometry3d.capnp
     thirdparty/ecal-common/src/capnp/mavstate.capnp

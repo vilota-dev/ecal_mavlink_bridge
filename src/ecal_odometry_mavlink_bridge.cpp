@@ -4,6 +4,7 @@
 #include <mavsdk/plugins/telemetry/telemetry.h>
 
 #include <spdlog/spdlog.h>
+#include <spdlog/fmt/ostr.h>
 
 #include <ecal/ecal.h>
 // #include <ecal/msg/capnproto/helper.h>
@@ -230,12 +231,10 @@ class EcalMavStateSender {
             msg.setModePX4(ecal::MavState::FlightModePX4::OFFBOARD);
         else {
             spdlog::warn("flight mode not recognised {}", mode);
-            std::cout << mode << std::endl;
         }
 
         if (lastMode != msg.getModePX4()) {
-            spdlog::warn("flight mode changes to {}", msg.getModePX4());
-            std::cout << mode << std::endl;
+            spdlog::warn("flight mode changes to {}", mode);
         }
             
 

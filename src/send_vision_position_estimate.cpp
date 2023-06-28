@@ -5,6 +5,7 @@
 #include <mavsdk/plugins/shell/shell.h>
 
 #include <spdlog/spdlog.h>
+#include <spdlog/fmt/ostr.h>
 
 
 #include <iostream>

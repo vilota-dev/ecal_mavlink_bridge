@@ -9,3 +9,6 @@
 	path = thirdparty/MAVSDK
 	url = https://github.com/vilota-dev/MAVSDK.git
 	branch = px4-v2
+[submodule "thirdparty/spdlog"]
+	path = thirdparty/spdlog
+	url = https://github.com/gabime/spdlog.git
