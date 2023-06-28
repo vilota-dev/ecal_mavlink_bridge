@@ -10,7 +10,7 @@ commands:
     # working_directory: ~/git
     steps:
       - restore_cache:
-          key: &mavsdk-cache mavsdk-cache-{{ .Environment.CACHE_VERSION }}-{{ .Environment.MACHINE_ARCH }}-{{ .Environment.MAVSDK_COMMIT }}
+          key: &mavsdk-cache mavsdk-cache-{{ .Environment.CACHE_VERSION }}-{{ .Environment.MACHINE_OS }}-{{ .Environment.MACHINE_ARCH }}-{{ .Environment.MAVSDK_COMMIT }}
       - run:
           name: Check if install already exist
           command: |
@@ -53,7 +53,7 @@ commands:
   build_capnproto:
     steps:
       - restore_cache:
-          key: &capnproto-cache capnproto-cache-{{ .Environment.CACHE_VERSION }}-{{ .Environment.MACHINE_ARCH }}-{{ .Environment.CAPNPROTO_COMMIT }}
+          key: &capnproto-cache capnproto-cache-{{ .Environment.CACHE_VERSION }}-{{ .Environment.MACHINE_OS }}-{{ .Environment.MACHINE_ARCH }}-{{ .Environment.CAPNPROTO_COMMIT }}
       - run:
           name: Check if capnproto already exist
           command: |
@@ -78,8 +78,7 @@ commands:
           key: *capnproto-cache
           paths:
             - ~/git/capnproto
-          
-
+            
   build_ecal_mavlink_bridge:
     steps:
       - restore_cache:
