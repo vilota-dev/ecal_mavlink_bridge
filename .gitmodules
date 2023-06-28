@@ -5,3 +5,7 @@
 	path = thirdparty/basalt-headers
 	url = https://github.com/chengguizi/basalt-headers.git
 	branch = master-sqrt
+[submodule "thirdparty/MAVSDK"]
+	path = thirdparty/MAVSDK
+	url = https://github.com/vilota-dev/MAVSDK.git
+	branch = px4-v2
