@@ -161,7 +161,7 @@ class MavlinkOdometrySender {
             
             spdlog::debug("odometry of seq = {}, ts = {} sent at host ts = {}, latency = {} ms", seq, tns, nowTns, (nowTns - tns) / 1e6);
         }else
-            spdlog::warn("failed to send odometry over mavlinke to px4");
+            spdlog::warn("failed to send odometry over mavlink to px4");
 
 
     }
@@ -387,15 +387,9 @@ class EcalLocalPositionSender {
                 position.setY(T_nwu_nwu.translation().y());
                 position.setZ(T_nwu_nwu.translation().z());
 
-
                 m_pubLocalPositionNWU->Send();
-
             }
-
-        }
-
-
-        
+        }        
     }
 
   private:
@@ -415,10 +409,9 @@ int main(int argc, char** argv)
 
     const std::string tf_prefix = "S0/";
 
-    Mavsdk mavsdk;
-    Mavsdk::Configuration configuration{Mavsdk::Configuration::UsageType::GroundStation}; // default system id to 1, we need GCS mode so we can receive mavlink logs
+    Mavsdk::Configuration configuration{Mavsdk::ComponentType::GroundStation}; // default system id to 1, we need GCS mode so we can receive mavlink logs
     // configuration.set_component_id(MAV_COMP_ID_VISUAL_INERTIAL_ODOMETRY); // This should be avoided, as it will prevent PX4 sending by info, warning, debug etc
-    mavsdk.set_configuration(configuration); 
+    Mavsdk mavsdk{configuration};
     ConnectionResult connection_result = mavsdk.add_any_connection(argv[1], argc == 3 ? ForwardingOption::ForwardingOn : ForwardingOption::ForwardingOff);
 
     if (connection_result != ConnectionResult::Success) {
@@ -479,7 +472,10 @@ int main(int argc, char** argv)
         [&] (Telemetry::PositionVelocityNed local_position) {
 
             auto tele_quat = telemetry.attitude_quaternion();
-
+            if (std::isnan(tele_quat.w) || std::isnan(tele_quat.x) || std::isnan(tele_quat.y) || std::isnan(tele_quat.z)) {
+                spdlog::warn("nan quaternion");
+                return;
+            }
             ecalLocalPositionSender.callback(local_position, tele_quat);
         }
     );
