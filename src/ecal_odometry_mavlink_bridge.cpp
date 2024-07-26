@@ -134,7 +134,7 @@ class MavlinkOdometrySender {
         return (ret == Mocap::Result::Success);
     }
 
-    void odometry_callback(const char* ecal_topic_name, ecal::Odometry3d::Reader ecal_msg, const long long ecal_ts) {
+    void odometry_callback(const char* ecal_topic_name, vkc::Odometry3d::Reader ecal_msg, const long long ecal_ts) {
     
         UNUSED(ecal_topic_name);
         UNUSED(ecal_ts);
@@ -176,7 +176,7 @@ class EcalMavStateSender {
   public:
     EcalMavStateSender(std::string tf_prefix, int sendIntervalSec = 1)
     {
-        m_pubMavState = std::make_shared<eCAL::capnproto::CPublisher<ecal::MavState>>();
+        m_pubMavState = std::make_shared<eCAL::capnproto::CPublisher<vkc::MavState>>();
         m_pubMavState->Create(tf_prefix + "mav_state");
         m_initialised = false;
         m_seq = 0;
@@ -184,14 +184,14 @@ class EcalMavStateSender {
         m_senderThread = std::thread(&EcalMavStateSender::senderThread, this, sendIntervalSec);
 
         // initial value
-        ecal::MavState::Builder msg = m_pubMavState->GetBuilder();
-        msg.setModePX4(ecal::MavState::FlightModePX4::UNKNOWN);
+        vkc::MavState::Builder msg = m_pubMavState->GetBuilder();
+        msg.setModePX4(vkc::MavState::FlightModePX4::UNKNOWN);
     }
 
     void updateArmStatus(bool armed)
     {
         std::lock_guard<std::mutex> lock(m_mutexMavState);
-        ecal::MavState::Builder msg = m_pubMavState->GetBuilder();
+        vkc::MavState::Builder msg = m_pubMavState->GetBuilder();
 
         std::uint64_t tns = std::chrono::steady_clock::now().time_since_epoch().count();
 
@@ -213,22 +213,22 @@ class EcalMavStateSender {
     void updateFlightMode(Telemetry::FlightMode mode)
     {
         std::lock_guard<std::mutex> lock(m_mutexMavState);
-        ecal::MavState::Builder msg = m_pubMavState->GetBuilder();
+        vkc::MavState::Builder msg = m_pubMavState->GetBuilder();
 
         std::uint64_t tns = std::chrono::steady_clock::now().time_since_epoch().count();
 
         const auto lastMode = msg.getModePX4();
 
         if (mode == Telemetry::FlightMode::Manual)
-            msg.setModePX4(ecal::MavState::FlightModePX4::MANUAL);
+            msg.setModePX4(vkc::MavState::FlightModePX4::MANUAL);
         else if (mode == Telemetry::FlightMode::Altctl)
-            msg.setModePX4(ecal::MavState::FlightModePX4::ALTITUDE);
+            msg.setModePX4(vkc::MavState::FlightModePX4::ALTITUDE);
         else if (mode == Telemetry::FlightMode::Posctl)
-            msg.setModePX4(ecal::MavState::FlightModePX4::POSITION);
+            msg.setModePX4(vkc::MavState::FlightModePX4::POSITION);
         else if (mode == Telemetry::FlightMode::Land)
-            msg.setModePX4(ecal::MavState::FlightModePX4::LAND);
+            msg.setModePX4(vkc::MavState::FlightModePX4::LAND);
         else if (mode == Telemetry::FlightMode::Offboard)
-            msg.setModePX4(ecal::MavState::FlightModePX4::OFFBOARD);
+            msg.setModePX4(vkc::MavState::FlightModePX4::OFFBOARD);
         else {
             spdlog::warn("flight mode not recognised {}", mode);
         }
@@ -251,7 +251,7 @@ class EcalMavStateSender {
     
     bool m_initialised;
     std::mutex m_mutexMavState;
-    std::shared_ptr<eCAL::capnproto::CPublisher<ecal::MavState>> m_pubMavState;
+    std::shared_ptr<eCAL::capnproto::CPublisher<vkc::MavState>> m_pubMavState;
     std::thread m_senderThread;
     std::uint64_t m_seq;
 
@@ -261,7 +261,7 @@ class EcalMavStateSender {
             {
                 std::lock_guard<std::mutex> lock(m_mutexMavState);
 
-                ecal::MavState::Builder msg = m_pubMavState->GetBuilder();
+                vkc::MavState::Builder msg = m_pubMavState->GetBuilder();
                 msg.getHeader().setSeq(m_seq);
 
                 m_pubMavState->Send();
@@ -281,33 +281,33 @@ class EcalLocalPositionSender {
 
         // ned publisher
         {
-            m_pubLocalPositionNED = std::make_shared<eCAL::capnproto::CPublisher<ecal::Odometry3d>>();
+            m_pubLocalPositionNED = std::make_shared<eCAL::capnproto::CPublisher<vkc::Odometry3d>>();
             m_pubLocalPositionNED->Create(tf_prefix + "local_position_ned");
 
-            ecal::Odometry3d::Builder msg = m_pubLocalPositionNED->GetBuilder();
-            msg.setBodyFrame(ecal::Odometry3d::BodyFrame::NED);
-            msg.setReferenceFrame(ecal::Odometry3d::ReferenceFrame::NED);
-            msg.setVelocityFrame(ecal::Odometry3d::VelocityFrame::NONE);
+            vkc::Odometry3d::Builder msg = m_pubLocalPositionNED->GetBuilder();
+            msg.setBodyFrame(vkc::Odometry3d::BodyFrame::NED);
+            msg.setReferenceFrame(vkc::Odometry3d::ReferenceFrame::NED);
+            msg.setVelocityFrame(vkc::Odometry3d::VelocityFrame::NONE);
 
             msg.getHeader().setSeq(0);
 
-            msg.getHeader().setClockDomain(ecal::Header::ClockDomain::MONOTONIC);
+            msg.getHeader().setClockDomain(vkc::Header::ClockDomain::MONOTONIC);
         }
 
         // nwu publisher
         {
-            m_pubLocalPositionNWU = std::make_shared<eCAL::capnproto::CPublisher<ecal::Odometry3d>>();
+            m_pubLocalPositionNWU = std::make_shared<eCAL::capnproto::CPublisher<vkc::Odometry3d>>();
             m_pubLocalPositionNWU->Create(tf_prefix + "local_position");
 
-            ecal::Odometry3d::Builder msg = m_pubLocalPositionNWU->GetBuilder();
+            vkc::Odometry3d::Builder msg = m_pubLocalPositionNWU->GetBuilder();
 
-            msg.setBodyFrame(ecal::Odometry3d::BodyFrame::NWU);
-            msg.setReferenceFrame(ecal::Odometry3d::ReferenceFrame::NWU);
-            msg.setVelocityFrame(ecal::Odometry3d::VelocityFrame::NONE);
+            msg.setBodyFrame(vkc::Odometry3d::BodyFrame::NWU);
+            msg.setReferenceFrame(vkc::Odometry3d::ReferenceFrame::NWU);
+            msg.setVelocityFrame(vkc::Odometry3d::VelocityFrame::NONE);
 
             msg.getHeader().setSeq(0);
 
-            msg.getHeader().setClockDomain(ecal::Header::ClockDomain::MONOTONIC);
+            msg.getHeader().setClockDomain(vkc::Header::ClockDomain::MONOTONIC);
         }
 
     }
@@ -317,7 +317,7 @@ class EcalLocalPositionSender {
 
         // ned publisher
         {
-            ecal::Odometry3d::Builder msg = m_pubLocalPositionNED->GetBuilder();
+            vkc::Odometry3d::Builder msg = m_pubLocalPositionNED->GetBuilder();
             auto header = msg.getHeader();
             header.setStamp(tns);
             header.setSeq(header.getSeq() + 1);
@@ -370,7 +370,7 @@ class EcalLocalPositionSender {
 
             {
 
-                ecal::Odometry3d::Builder msg = m_pubLocalPositionNWU->GetBuilder();
+                vkc::Odometry3d::Builder msg = m_pubLocalPositionNWU->GetBuilder();
                 auto header = msg.getHeader();
                 header.setStamp(tns);
                 header.setSeq(header.getSeq() + 1);
@@ -394,7 +394,7 @@ class EcalLocalPositionSender {
 
   private:
     
-    std::shared_ptr<eCAL::capnproto::CPublisher<ecal::Odometry3d>> m_pubLocalPositionNED, m_pubLocalPositionNWU;
+    std::shared_ptr<eCAL::capnproto::CPublisher<vkc::Odometry3d>> m_pubLocalPositionNED, m_pubLocalPositionNWU;
 
 
 };
@@ -464,7 +464,7 @@ int main(int argc, char** argv)
             break;
     }
 
-    std::shared_ptr<eCAL::capnproto::CPublisher<ecal::Odometry3d>> pubOdometry;
+    std::shared_ptr<eCAL::capnproto::CPublisher<vkc::Odometry3d>> pubOdometry;
 
 
     EcalLocalPositionSender ecalLocalPositionSender(tf_prefix);
@@ -528,9 +528,9 @@ int main(int argc, char** argv)
 
     spdlog::info("eCAL Version: {}", eCAL::GetVersionString());
 
-    std::shared_ptr<eCAL::capnproto::CSubscriber<ecal::Odometry3d>> subOdometry;
+    std::shared_ptr<eCAL::capnproto::CSubscriber<vkc::Odometry3d>> subOdometry;
 
-    subOdometry = std::make_shared<eCAL::capnproto::CSubscriber<ecal::Odometry3d>>(tf_prefix + "vio_odom_ned");
+    subOdometry = std::make_shared<eCAL::capnproto::CSubscriber<vkc::Odometry3d>>(tf_prefix + "vio_odom_ned");
     subOdometry->AddReceiveCallback(std::bind(&MavlinkOdometrySender::odometry_callback, &mavOdometrySender, 
         std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
 
