@@ -141,7 +141,7 @@ class MavlinkOdometrySender {
 
         const auto& header = ecal_msg.getHeader();
         auto seq = header.getSeq();
-        auto tns = header.getStamp();
+        auto tns = header.getStampMonotonic();
 
         Mocap::PositionBody p;
         auto position = ecal_msg.getPose().getPosition();
@@ -202,10 +202,10 @@ class EcalMavStateSender {
 
         msg.setArmed(armed);
 
-        if (msg.getHeader().getStamp() < tns)
-            msg.getHeader().setStamp(tns);
+        if (msg.getHeader().getStampMonotonic() < tns)
+            msg.getHeader().setStampMonotonic(tns);
         else
-            spdlog::warn("tns regression on flight mode update, from {} to {}", msg.getHeader().getStamp(), tns);
+            spdlog::warn("tns regression on flight mode update, from {} to {}", msg.getHeader().getStampMonotonic(), tns);
 
         m_initialised = true;
     }
@@ -238,10 +238,10 @@ class EcalMavStateSender {
         }
             
 
-        if (msg.getHeader().getStamp() < tns)
-            msg.getHeader().setStamp(tns);
+        if (msg.getHeader().getStampMonotonic() < tns)
+            msg.getHeader().setStampMonotonic(tns);
         else
-            spdlog::warn("tns regression on flight mode update, from {} to {}", msg.getHeader().getStamp(), tns);
+            spdlog::warn("tns regression on flight mode update, from {} to {}", msg.getHeader().getStampMonotonic(), tns);
 
         m_initialised = true;
     }
@@ -319,7 +319,7 @@ class EcalLocalPositionSender {
         {
             vkc::Odometry3d::Builder msg = m_pubLocalPositionNED->GetBuilder();
             auto header = msg.getHeader();
-            header.setStamp(tns);
+            header.setStampMonotonic(tns);
             header.setSeq(header.getSeq() + 1);
             
             auto orientation = msg.getPose().getOrientation();
@@ -372,7 +372,7 @@ class EcalLocalPositionSender {
 
                 vkc::Odometry3d::Builder msg = m_pubLocalPositionNWU->GetBuilder();
                 auto header = msg.getHeader();
-                header.setStamp(tns);
+                header.setStampMonotonic(tns);
                 header.setSeq(header.getSeq() + 1);
                 
                 auto quat = T_nwu_nwu.unit_quaternion();
