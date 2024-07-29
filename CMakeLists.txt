@@ -44,10 +44,11 @@ set(CMAKE_FIND_LIBRARY_SUFFIXES ${CMAKE_STATIC_LIBRARY_SUFFIX})
 add_subdirectory(thirdparty/spdlog)
 
 # Finds MAVSDK for lacal install
-set(cmake_config_DIR "/home/$ENV{USER}/git/MAVSDK/build/install/lib/cmake")
-set(MAVSDK_DIR ${cmake_config_DIR}/MAVSDK)
+# set(cmake_config_DIR "/home/$ENV{USER}/git/MAVSDK/build/install/lib/cmake")
+# set(MAVSDK_DIR ${cmake_config_DIR}/MAVSDK)
 find_package(MAVSDK CONFIG REQUIRED)
 
+find_package(vk_sdk CONFIG REQUIRED)
 
 # Specify your app's executable name, and list of source files used to create it.
 add_executable(test_timesync
@@ -76,25 +77,25 @@ target_link_libraries(send_vision_position_estimate
 )
 
 
-find_package(eCAL 5.11 REQUIRED)
+# find_package(eCAL 5.11 REQUIRED)
 
-set(CMAKE_FIND_LIBRARY_SUFFIXES ${CMAKE_STATIC_LIBRARY_SUFFIX})
-find_package(CapnProto REQUIRED)
+# set(CMAKE_FIND_LIBRARY_SUFFIXES ${CMAKE_STATIC_LIBRARY_SUFFIX})
+# find_package(CapnProto REQUIRED)
 
 # create the prefix, so the actual capnp file is in the path like capnp/*.capnp
-set(CAPNPC_SRC_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/")
-capnp_generate_cpp(CAPNP_SRCS CAPNP_HDRS 
-    thirdparty/ecal-common/src/capnp/header.capnp
-    thirdparty/ecal-common/src/capnp/se3.capnp
-    thirdparty/ecal-common/src/capnp/so3.capnp
-    thirdparty/ecal-common/src/capnp/vector3.capnp
-    thirdparty/ecal-common/src/capnp/twist3.capnp
-    thirdparty/ecal-common/src/capnp/odometry3d.capnp
-    thirdparty/ecal-common/src/capnp/mavstate.capnp
-)
+# set(CAPNPC_SRC_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/")
+# capnp_generate_cpp(CAPNP_SRCS CAPNP_HDRS 
+#     thirdparty/ecal-common/src/capnp/header.capnp
+#     thirdparty/ecal-common/src/capnp/se3.capnp
+#     thirdparty/ecal-common/src/capnp/so3.capnp
+#     thirdparty/ecal-common/src/capnp/vector3.capnp
+#     thirdparty/ecal-common/src/capnp/twist3.capnp
+#     thirdparty/ecal-common/src/capnp/odometry3d.capnp
+#     thirdparty/ecal-common/src/capnp/mavstate.capnp
+# )
 
 include_directories(
-    ${CMAKE_CURRENT_BINARY_DIR}/ecal-common/src/ # generated headers from capnp
+    # ${CMAKE_CURRENT_BINARY_DIR}/ecal-common/src/ # generated headers from capnp
     thirdparty/basalt-headers/thirdparty/eigen
     thirdparty/basalt-headers/thirdparty/Sophus
 )
@@ -102,8 +103,8 @@ include_directories(
 # Specify your app's executable name, and list of source files used to create it.
 add_executable(ecal_odometry_mavlink_bridge
     src/ecal_odometry_mavlink_bridge.cpp
-    ${CAPNP_SRCS}
-    ${CAPNP_HDRS}
+    # ${CAPNP_SRCS}
+    # ${CAPNP_HDRS}
     # ... any other source files
 )
 
@@ -113,6 +114,7 @@ target_link_libraries(ecal_odometry_mavlink_bridge
     spdlog::spdlog
     CapnProto::capnp
     eCAL::core
+    vk_sdk
     # ... Any other linked libraries
 )
 
