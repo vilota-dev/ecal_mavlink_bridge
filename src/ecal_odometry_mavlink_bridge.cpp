@@ -40,6 +40,7 @@ void usage(const std::string& bin_name)
               << " For TCP : tcp://[server_host][:server_port]\n"
               << " For UDP : udp://[bind_host][:bind_port]\n"
               << " For Serial : serial:///path/to/serial/dev[:baudrate]\n"
+              << "Followed by 0 for VK180 or 1 for VK180P\n"
               << "For example, to connect to the simulator use URL: udp://:14540\n";
 }
 
@@ -475,17 +476,17 @@ class EcalLocalPositionSender {
 
 int main(int argc, char** argv)
 {
-    if (argc < 2 || argc > 3) {
+    if (argc < 3 || argc > 4) {
         usage(argv[0]);
         return 1;
     }
-
-    const std::string tf_prefix = "S0/";
+    
+    const std::string tf_prefix = "S" + argv[2] +"/";
 
     Mavsdk::Configuration configuration{Mavsdk::ComponentType::GroundStation}; // default system id to 1, we need GCS mode so we can receive mavlink logs
     // configuration.set_component_id(MAV_COMP_ID_VISUAL_INERTIAL_ODOMETRY); // This should be avoided, as it will prevent PX4 sending by info, warning, debug etc
     Mavsdk mavsdk{configuration};
-    ConnectionResult connection_result = mavsdk.add_any_connection(argv[1], argc == 3 ? ForwardingOption::ForwardingOn : ForwardingOption::ForwardingOff);
+    ConnectionResult connection_result = mavsdk.add_any_connection(argv[1], argc == 4 ? ForwardingOption::ForwardingOn : ForwardingOption::ForwardingOff);
 
     if (connection_result != ConnectionResult::Success) {
         std::cerr << "Connection failed to autopilot: " << connection_result << '\n';
@@ -494,7 +495,7 @@ int main(int argc, char** argv)
 
     // we will also add the connection to gcs
 
-    if (argc == 3) {
+    if (argc == 4) {
 
         std::cout << "connecting to gcs at " << argv[2] << std::endl;
         connection_result = mavsdk.add_any_connection(argv[2], argc == 3 ? ForwardingOption::ForwardingOn : ForwardingOption::ForwardingOff);
