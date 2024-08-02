@@ -481,7 +481,7 @@ int main(int argc, char** argv)
         return 1;
     }
     
-    const std::string tf_prefix = "S" + argv[2] +"/";
+    const std::string tf_prefix = "S" + std::String(argv[2]) +"/";
 
     Mavsdk::Configuration configuration{Mavsdk::ComponentType::GroundStation}; // default system id to 1, we need GCS mode so we can receive mavlink logs
     // configuration.set_component_id(MAV_COMP_ID_VISUAL_INERTIAL_ODOMETRY); // This should be avoided, as it will prevent PX4 sending by info, warning, debug etc
