@@ -497,8 +497,8 @@ int main(int argc, char** argv)
 
     if (argc == 4) {
 
-        std::cout << "connecting to gcs at " << argv[2] << std::endl;
-        connection_result = mavsdk.add_any_connection(argv[2], argc == 3 ? ForwardingOption::ForwardingOn : ForwardingOption::ForwardingOff);
+        std::cout << "connecting to gcs at " << argv[3] << std::endl;
+        connection_result = mavsdk.add_any_connection(argv[3], argc == 4 ? ForwardingOption::ForwardingOn : ForwardingOption::ForwardingOff);
 
         if (connection_result != ConnectionResult::Success) {
             std::cerr << "Connection failed to gcs: " << connection_result << '\n';
