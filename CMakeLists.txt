@@ -46,6 +46,20 @@ add_subdirectory(thirdparty/spdlog)
 # Finds MAVSDK for lacal install
 # set(cmake_config_DIR "/home/$ENV{USER}/git/MAVSDK/build/install/lib/cmake")
 # set(MAVSDK_DIR ${cmake_config_DIR}/MAVSDK)
+
+# Disable treating warnings as errors for MAVSDK
+set(WERROR OFF CACHE BOOL "Disable treating warnings as errors")
+
+# Optional: Add any extra flags you want, e.g., suppress specific warnings
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-stringop-overread")
+
+# Then add MAVSDK
+add_subdirectory(thirdparty/MAVSDK)
+
+# Update prefix path if needed
+list(APPEND CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/thirdparty/MAVSDK/install")
+
+
 find_package(MAVSDK CONFIG REQUIRED)
 
 find_package(vk_sdk CONFIG REQUIRED)
@@ -114,7 +128,7 @@ target_link_libraries(ecal_odometry_mavlink_bridge
     spdlog::spdlog
     CapnProto::capnp
     eCAL::core
-    vk_sdk
+    vilota::vk_sdk
     # ... Any other linked libraries
 )
 

@@ -15,7 +15,7 @@
 
 
 // #include <vk_sdk/odometry3d.capnp.h>
-// #include <vkc/mavstate.capnp.h>
+#include "vk_sdk/capnp/mavstate.capnp.h"
 
 #include <iostream>
 #include <chrono>
@@ -483,9 +483,10 @@ int main(int argc, char** argv)
     
     const std::string tf_prefix = "S" + std::string(argv[2]) +"/";
 
-    Mavsdk::Configuration configuration{Mavsdk::ComponentType::GroundStation}; // default system id to 1, we need GCS mode so we can receive mavlink logs
+    Mavsdk::Configuration configuration{Mavsdk::Configuration::UsageType::GroundStation}; // default system id to 1, we need GCS mode so we can receive mavlink logs
     // configuration.set_component_id(MAV_COMP_ID_VISUAL_INERTIAL_ODOMETRY); // This should be avoided, as it will prevent PX4 sending by info, warning, debug etc
-    Mavsdk mavsdk{configuration};
+    Mavsdk mavsdk;
+    mavsdk.set_configuration(configuration);
     ConnectionResult connection_result = mavsdk.add_any_connection(argv[1], argc == 4 ? ForwardingOption::ForwardingOn : ForwardingOption::ForwardingOff);
 
     if (connection_result != ConnectionResult::Success) {
