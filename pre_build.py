@@ -112,7 +112,7 @@ def main():
         "-j",
         "--jobs",
         type=int,
-        default=os.cpu_count() or 4,
+        default=max(1, (os.cpu_count() or 4) // 2),
         help="Number of parallel jobs to use when building"
     )
     args = parser.parse_args()
