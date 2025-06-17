@@ -53,12 +53,11 @@ set(WERROR OFF CACHE BOOL "Disable treating warnings as errors")
 # Optional: Add any extra flags you want, e.g., suppress specific warnings
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-stringop-overread")
 
-# Then add MAVSDK
-add_subdirectory(thirdparty/MAVSDK)
 
 # Update prefix path if needed
-list(APPEND CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/thirdparty/MAVSDK/install")
+list(APPEND CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/cache/MAVSDK-install")
 
+find_package(MAVSDK CONFIG REQUIRED)
 
 find_package(vk_sdk CONFIG REQUIRED)
 
@@ -70,7 +69,7 @@ add_executable(test_timesync
 
 # Specify your app's executable name and a list of linked libraries
 target_link_libraries(test_timesync
-    mavsdk             #All apps link against mavsdk library
+    MAVSDK::mavsdk             #All apps link against mavsdk library
     spdlog::spdlog
     # ... Any other linked libraries
 )
@@ -83,7 +82,7 @@ add_executable(send_vision_position_estimate
 
 # Specify your app's executable name and a list of linked libraries
 target_link_libraries(send_vision_position_estimate
-    mavsdk             #All apps link against mavsdk library
+    MAVSDK::mavsdk              #All apps link against mavsdk library
     spdlog::spdlog
     # ... Any other linked libraries
 )
@@ -122,7 +121,7 @@ add_executable(ecal_odometry_mavlink_bridge
 
 # Specify your app's executable name and a list of linked libraries
 target_link_libraries(ecal_odometry_mavlink_bridge
-    mavsdk             #All apps link against mavsdk library
+    MAVSDK::mavsdk              #All apps link against mavsdk library
     spdlog::spdlog
     CapnProto::capnp
     eCAL::core
