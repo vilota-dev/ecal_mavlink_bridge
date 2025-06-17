@@ -1,22 +1,70 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 
 import os
 import subprocess
 import sys
 import argparse
 
-# List of all thirdparty modules you want to manage
 thirdparty_modules = [
     "MAVSDK"
 ]
+
+CACHE_COMMITS_PATH = "cache/commits.txt"
 
 def run_command(cmd_list, cwd=None):
     print(f"Running command: {' '.join(cmd_list)}")
     try:
         subprocess.run(cmd_list, check=True, cwd=cwd)
     except subprocess.CalledProcessError as e:
-        print(f"Error executing {' '.join(e.cmd)}: {e.stderr if e.stderr else e}")
+        print(f"Error executing {' '.join(e.cmd)}")
         sys.exit(1)
+
+def get_submodule_hashes():
+    result = subprocess.run(
+        ["git", "submodule", "status"],
+        capture_output=True,
+        text=True,
+        check=True
+    )
+    lines = result.stdout.strip().splitlines()
+    hashes = {}
+    for line in lines:
+        if line:
+            parts = line.strip().split()
+            hash_val = parts[0].lstrip("-+")
+            path = parts[1]
+            hashes[path] = hash_val
+    return hashes
+
+def read_saved_hashes():
+    if not os.path.isfile(CACHE_COMMITS_PATH):
+        return {}
+    with open(CACHE_COMMITS_PATH, "r") as f:
+        lines = f.readlines()
+    saved = {}
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        parts = line.split()
+        if len(parts) == 2:
+            saved[parts[0]] = parts[1]
+    return saved
+
+def save_hashes(hashes):
+    os.makedirs(os.path.dirname(CACHE_COMMITS_PATH), exist_ok=True)
+    with open(CACHE_COMMITS_PATH, "w") as f:
+        for path, hash_val in hashes.items():
+            f.write(f"{path} {hash_val}\n")
+
+def should_build(module_name, module_path, current_hashes, saved_hashes, project_root_dir):
+    install_dir = os.path.join(project_root_dir, "cache", f"{module_name}-install")
+    # Build if submodule hash changed or install directory missing
+    if current_hashes.get(module_path) != saved_hashes.get(module_path):
+        return True
+    if not os.path.isdir(install_dir):
+        return True
+    return False
 
 def build_mavsdk(project_root_dir, nthread=4):
     module_name = "MAVSDK"
@@ -24,8 +72,10 @@ def build_mavsdk(project_root_dir, nthread=4):
     build_dir = os.path.join(project_root_dir, "cache", f"{module_name}-build")
     install_dir = os.path.join(project_root_dir, "cache", f"{module_name}-install")
 
-    run_command(["rm", "-rf", build_dir])
-    run_command(["rm", "-rf", install_dir])
+    if os.path.exists(build_dir):
+        run_command(["rm", "-rf", build_dir])
+    if os.path.exists(install_dir):
+        run_command(["rm", "-rf", install_dir])
 
     os.makedirs(build_dir, exist_ok=True)
 
@@ -43,7 +93,6 @@ def build_mavsdk(project_root_dir, nthread=4):
     run_command(["cmake", "--install", "."], cwd=build_dir)
 
     print(f"{module_name} built and installed to: {install_dir}")
-    return install_dir
 
 def build_module(module_name, project_root_dir, nthread=4):
     if module_name == "MAVSDK":
@@ -51,106 +100,47 @@ def build_module(module_name, project_root_dir, nthread=4):
     else:
         print(f"No build instructions for module: {module_name}")
 
-# --- Git helper functions to get submodule commits etc. ---
-
-def read_gitmodules():
-    submodule_paths = []
-    with open(".gitmodules", "r") as file:
-        lines = file.readlines()
-        for line in lines:
-            if line.strip().startswith("path ="):
-                submodule_path = line.split("=")[1].strip()
-                submodule_paths.append(submodule_path)
-    return submodule_paths
-
-def get_submodule_commit_hash(submodule_path):
-    result = subprocess.run(
-        ["git", "submodule", "status", submodule_path], capture_output=True, text=True
-    )
-    if result.returncode == 0:
-        output = result.stdout[1:]  # remove first char (status symbol)
-        parts = output.split()
-        if len(parts) >= 2:
-            return parts[0]
-    return None
-
-def get_current_commit_hashes():
-    submodule_commits = {}
-    submodule_paths = read_gitmodules()
-    for path in submodule_paths:
-        commit_hash = get_submodule_commit_hash(path)
-        if commit_hash:
-            submodule_name = path.replace("thirdparty/", "")
-            submodule_commits[submodule_name] = commit_hash
-    return submodule_commits
-
-def read_commits_txt(commits_txt_path):
-    commits_dict = {}
-    try:
-        with open(commits_txt_path, "r") as f:
-            for line in f:
-                if line.strip():
-                    key, val = line.strip().split()
-                    commits_dict[key] = val
-    except FileNotFoundError:
-        print(f"commits.txt not found at '{commits_txt_path}'")
-    return commits_dict
-
-def write_commits_to_file(submodule_commits, file_path):
-    os.makedirs(os.path.dirname(file_path), exist_ok=True)
-    with open(file_path, "w") as file:
-        for submodule, commit_hash in submodule_commits.items():
-            file.write(f"{submodule} {commit_hash}\n")
-
-def compare_commit_hashes(commits_dict, current_commit_hashes):
-    prebuild_package_list = []
-    for submodule, commit_hash in current_commit_hashes.items():
-        if commits_dict.get(submodule) != commit_hash:
-            print(f"[Debug] {submodule} {commits_dict.get(submodule)} vs {commit_hash}")
-            prebuild_package_list.append(submodule)
-    return prebuild_package_list
-
 def main():
-    parser = argparse.ArgumentParser(description="Build thirdparty modules with smart updates")
+    parser = argparse.ArgumentParser(description="Build thirdparty modules")
     parser.add_argument(
-        "-s", action="store_true", help="Use full CPU cores (nthread = cpu_count). Otherwise half cores"
+        "--project_root",
+        type=str,
+        default=os.path.abspath(os.path.dirname(__file__)),
+        help="Root directory of the project"
+    )
+    parser.add_argument(
+        "-j",
+        "--jobs",
+        type=int,
+        default=os.cpu_count() or 4,
+        help="Number of parallel jobs to use when building"
     )
     args = parser.parse_args()
 
-    project_root_dir = os.path.abspath(os.path.dirname(__file__))
+    project_root_dir = args.project_root
+    nthread = args.jobs
 
-    if args.s:
-        nthread = os.cpu_count()
-    else:
-        nthread = max(1, os.cpu_count() // 2)
+    print(f"Using project root: {project_root_dir}")
+    print(f"Using {nthread} parallel jobs")
 
-    commits_txt_path = os.path.join(project_root_dir, "cache", "commits.txt")
-    commits_dict = read_commits_txt(commits_txt_path)
-    current_commit_hashes = get_current_commit_hashes()
-    prebuild_package_list = compare_commit_hashes(commits_dict, current_commit_hashes)
+    current_hashes = get_submodule_hashes()
+    saved_hashes = read_saved_hashes()
 
-    if prebuild_package_list:
-        for module_name in prebuild_package_list:
-            print(f"[Debug] Updating {module_name} in thirdparty folder")
-            update_submodule_command = [
-                "git",
-                "submodule",
-                "update",
-                "--init",
-                "--recursive",
-                "--depth=1",
-                f"thirdparty/{module_name}",
-            ]
-            subprocess.run(update_submodule_command, check=True, cwd=project_root_dir)
+    for module_name in thirdparty_modules:
+        module_path = os.path.join("thirdparty", module_name)
+        if should_build(module_name, module_path, current_hashes, saved_hashes, project_root_dir):
+            print(f"\n[Info] Building {module_name} because submodule changed or not built yet.")
+            # Update submodule
+            run_command([
+                "git", "submodule", "update", "--init", "--recursive", "--depth=1", module_path
+            ], cwd=project_root_dir)
+            # Build the module
             build_module(module_name, project_root_dir, nthread)
+        else:
+            print(f"\n[Info] Skipping {module_name}: submodule unchanged.")
 
-            # Update commits.txt after each pre-build is done
-            os.chdir(project_root_dir)
-            write_commits_to_file(get_current_commit_hashes(), commits_txt_path)
-    else:
-        print("All the thirdparties have correct versions")
-
-    print("All modules have been successfully built.")
+    save_hashes(current_hashes)
+    print("\nAll requested modules are up to date and built.")
 
 if __name__ == "__main__":
     main()
