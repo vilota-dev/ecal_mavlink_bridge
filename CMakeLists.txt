@@ -60,8 +60,6 @@ add_subdirectory(thirdparty/MAVSDK)
 list(APPEND CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/thirdparty/MAVSDK/install")
 
 
-find_package(MAVSDK CONFIG REQUIRED)
-
 find_package(vk_sdk CONFIG REQUIRED)
 
 # Specify your app's executable name, and list of source files used to create it.
@@ -72,7 +70,7 @@ add_executable(test_timesync
 
 # Specify your app's executable name and a list of linked libraries
 target_link_libraries(test_timesync
-    MAVSDK::mavsdk             #All apps link against mavsdk library
+    mavsdk             #All apps link against mavsdk library
     spdlog::spdlog
     # ... Any other linked libraries
 )
@@ -85,7 +83,7 @@ add_executable(send_vision_position_estimate
 
 # Specify your app's executable name and a list of linked libraries
 target_link_libraries(send_vision_position_estimate
-    MAVSDK::mavsdk             #All apps link against mavsdk library
+    mavsdk             #All apps link against mavsdk library
     spdlog::spdlog
     # ... Any other linked libraries
 )
@@ -124,7 +122,7 @@ add_executable(ecal_odometry_mavlink_bridge
 
 # Specify your app's executable name and a list of linked libraries
 target_link_libraries(ecal_odometry_mavlink_bridge
-    MAVSDK::mavsdk             #All apps link against mavsdk library
+    mavsdk             #All apps link against mavsdk library
     spdlog::spdlog
     CapnProto::capnp
     eCAL::core
