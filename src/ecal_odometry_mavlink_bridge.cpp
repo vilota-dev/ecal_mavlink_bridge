@@ -109,7 +109,7 @@ class VkcOdomReceiver: public vkc::Receiver<vkc::Odometry3d> {
         auto reader = message.payload.reader();
         const auto& header =  reader.getHeader();
         auto seq = header.getSeq();
-        auto tns = header.getStampMonotonic();
+        auto tns = header.getStampMonotonic() + header.getClockOffset();
 
         Mocap::PositionBody p;
         auto position = reader.getPose().getPosition();
