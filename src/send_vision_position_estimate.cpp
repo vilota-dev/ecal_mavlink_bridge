@@ -115,9 +115,9 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    Mavsdk mavsdk;
-    Mavsdk::Configuration configuration{Mavsdk::Configuration::UsageType::GroundStation}; // default system id to 1, we need GCS mode so we can receive mavlink logs
-    mavsdk.set_configuration(configuration);
+    mavsdk::Mavsdk::Configuration configuration{mavsdk::Mavsdk::ComponentType::GroundStation};
+    mavsdk::Mavsdk mavsdk(configuration);
+
     ConnectionResult connection_result = mavsdk.add_any_connection(argv[1]);
 
     if (connection_result != ConnectionResult::Success) {
