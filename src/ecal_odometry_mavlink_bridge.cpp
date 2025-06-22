@@ -97,7 +97,10 @@ std::shared_ptr<System> get_system(Mavsdk& mavsdk)
 class VkcOdomReceiver: public vkc::Receiver<vkc::Odometry3d> {
   public:
     VkcOdomReceiver(std::shared_ptr<System> system)
-        : m_mocap(std::make_shared<Mocap>(system)) {
+        : 
+        m_system(system),
+        m_mocap(std::make_shared<Mocap>(system)) {
+
         m_odom_msg.pose_covariance.covariance_matrix.resize(1);
         m_odom_msg.pose_covariance.covariance_matrix[0] = NAN;
         m_odom_msg.velocity_covariance.covariance_matrix.resize(1);
@@ -109,7 +112,13 @@ class VkcOdomReceiver: public vkc::Receiver<vkc::Odometry3d> {
         auto reader = message.payload.reader();
         const auto& header =  reader.getHeader();
         auto seq = header.getSeq();
-        auto tns = header.getStampMonotonic() + header.getClockOffset();
+        
+        // Using PX4-MAVSDK timesync offset
+        // auto tns = header.getStampMonotonic() + header.getClockOffset();
+        // int64_t timesync_offset_ns = m_system->get_timesync_offset_ns();
+        // uint64_t header_stamp_ns = header.getStampMonotonic(); //debug
+        // int64_t clock_offset_ns = header.getClockOffset(); //debug
+        // uint64_t tns = header_stamp_ns + timesync_offset_ns;
 
         Mocap::PositionBody p;
         auto position = reader.getPose().getPosition();
@@ -124,19 +133,43 @@ class VkcOdomReceiver: public vkc::Receiver<vkc::Odometry3d> {
         q.y = orientation.getY();
         q.z = orientation.getZ();
 
-        if (Send(tns, p, q)) {
-            std::uint64_t nowTns = std::chrono::steady_clock::now().time_since_epoch().count();
-            
-            spdlog::debug("odometry of seq = {}, ts = {} sent at host ts = {}, latency = {} ms", seq, tns, nowTns, (nowTns - tns) / 1e6);
-        }else
+        // Get current time in nanoseconds
+        // auto now = std::chrono::steady_clock::now();
+        // uint64_t nowTns = std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
+        // double latency_ms = (nowTns - tns) / 1e6;
+
+        // Debug print
+        
+        // spdlog::info("=== TIMESTAMP DEBUG ===");
+        // spdlog::info("  VIO seq             = {} ", seq);
+        // spdlog::info("  VIO header raw time = {} ns", header_stamp_ns);
+        // spdlog::info("  VIO clk offset time = {} ns", clock_offset_ns);
+        // spdlog::info("  PX4-host offset     = {} ns", timesync_offset_ns);
+        // spdlog::info("  Computed PX4 time   = {} ns", tns);
+        // spdlog::info("  Now (host time)     = {} ns", nowTns);
+        // spdlog::info("  Final latency       = {:.3f} ms", latency_ms);
+
+        // if (latency_ms > 200) {
+        //     spdlog::warn("High odometry latency detected: {:.3f} ms", latency_ms);
+        // }
+
+        // if (Send(tns, p, q)) {
+        if (Send(p, q)) {
+
+        spdlog::debug("odometry of seq={} sent successfully", seq);
+        } else {
             spdlog::warn("failed to send odometry over mavlink to px4");
+        }
         
         return vkc::ReceiverStatus::Open;
     }
 
-    bool Send(uint64_t tns, Mocap::PositionBody& p, Mocap::Quaternion& q)
+    // bool Send(uint64_t tns, Mocap::PositionBody& p, Mocap::Quaternion& q)
+    bool Send(Mocap::PositionBody& p, Mocap::Quaternion& q)
     {
-        m_odom_msg.time_usec = tns / 1e3;
+        //m_odom_msg.time_usec = tns / 1e3;
+        auto now_ns = std::chrono::steady_clock::now().time_since_epoch().count();
+        m_odom_msg.time_usec = now_ns / 1e3; 
         m_odom_msg.position_body = p;
         m_odom_msg.q = q;
 
@@ -149,103 +182,20 @@ class VkcOdomReceiver: public vkc::Receiver<vkc::Odometry3d> {
         else
             spdlog::warn("mocap send other error {}", ret);
         
-        if (count % 100 == 0)
+        if (count % 100 == 0){
             std::cout << "mavlink odometry message sent to px4: " << m_odom_msg << std::endl;
+        }
         count++;
 
         return (ret == Mocap::Result::Success);
     }
   private:
+    std::shared_ptr<System> m_system; 
     std::shared_ptr<Mocap> m_mocap;
     Mocap::Odometry m_odom_msg;
     uint64_t count;
 };
 
-// class MavlinkOdometrySender {
-
-//   public:
-//     MavlinkOdometrySender(std::shared_ptr<System> system)
-//     {
-//         m_mocap = std::make_shared<Mocap>(system);
-
-//         // not implementing pose covariance yet
-//         m_odom_msg.pose_covariance.covariance_matrix.resize(1);
-//         m_odom_msg.pose_covariance.covariance_matrix[0] = NAN;
-
-//         // not implementing velocity covriance yet
-//         m_odom_msg.velocity_covariance.covariance_matrix.resize(1);
-//         m_odom_msg.velocity_covariance.covariance_matrix[0] = NAN;
-
-//         // hardcode as vision now
-//         m_odom_msg.mav_estimator = Mocap::Odometry::MavEstimator::Vision;
-
-//         count = 0;
-//     }
-
-//     bool Send(uint64_t tns, Mocap::PositionBody& p, Mocap::Quaternion& q)
-//     {
-//         m_odom_msg.time_usec = tns / 1e3;
-//         m_odom_msg.position_body = p;
-//         m_odom_msg.q = q;
-
-//         auto ret = m_mocap->set_odometry(m_odom_msg);
-
-//         if (ret == Mocap::Result::NoSystem)
-//             spdlog::warn("no system connected");
-//         else if (ret == Mocap::Result::Success)
-//             spdlog::debug("mocap sent success");
-//         else
-//             spdlog::warn("mocap send other error {}", ret);
-        
-//         if (count % 100 == 0)
-//             std::cout << "mavlink odometry message sent to px4: " << m_odom_msg << std::endl;
-//         count++;
-
-//         return (ret == Mocap::Result::Success);
-//     }
-
-//     // void odometry_callback(const char* ecal_topic_name, vkc::Odometry3d::Reader ecal_msg, const long long ecal_ts) {
-//     void odometry_callback(const char* ecal_topic_name, const eCAL::SReceiveCallbackData* data) {
-    
-//         UNUSED(ecal_topic_name);
-//         // UNUSED(ecal_ts);
-
-//         kj::ArrayPtr<const kj::byte> bytes(reinterpret_cast<const kj::byte*>(data->buf), data->size);
-//         kj::ArrayInputStream stream(bytes);
-//         std::shared_ptr<capnp::MessageBuilder> mBuffer = stream;
-//         vkc::Odometry3d::Reader ecal_msg = mBuffer->getRoot<vkc::Odometry3d>().asReader();
-//         const auto& header = ecal_msg.getHeader();
-//         auto seq = header.getSeq();
-//         auto tns = header.getStampMonotonic();
-
-//         Mocap::PositionBody p;
-//         auto position = ecal_msg.getPose().getPosition();
-//         p.x_m = position.getX();
-//         p.y_m = position.getY();
-//         p.z_m = position.getZ();
-
-//         Mocap::Quaternion q;
-//         auto orientation = ecal_msg.getPose().getOrientation();
-//         q.w = orientation.getW();
-//         q.x = orientation.getX();
-//         q.y = orientation.getY();
-//         q.z = orientation.getZ();
-
-//         if (Send(tns, p, q)) {
-//             std::uint64_t nowTns = std::chrono::steady_clock::now().time_since_epoch().count();
-            
-//             spdlog::debug("odometry of seq = {}, ts = {} sent at host ts = {}, latency = {} ms", seq, tns, nowTns, (nowTns - tns) / 1e6);
-//         }else
-//             spdlog::warn("failed to send odometry over mavlink to px4");
-
-
-//     }
-
-//   private:
-//     std::shared_ptr<Mocap> m_mocap;
-//     Mocap::Odometry m_odom_msg;
-//     uint64_t count;
-// };
 
 class EcalMavStateSender {
   public:
@@ -616,9 +566,21 @@ int main(int argc, char** argv)
     // subOdometry->AddReceiveCallback(std::bind(&MavlinkOdometrySender::odometry_callback, &mavOdometrySender, 
     //     std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
 
+    static int64_t last_offset = 0;
     while (eCAL::Ok()) {
         std::this_thread::sleep_for(seconds(10));
-        spdlog::info("system steady time now {} ms", std::chrono::steady_clock::now().time_since_epoch().count() / 1e6);
+        int64_t offset_ns = system->get_timesync_offset_ns();
+    double offset_ms = offset_ns / 1e6;
+
+    spdlog::info("system steady time now {} ms, current timesync offset {} ms", 
+                 std::chrono::steady_clock::now().time_since_epoch().count() / 1e6,
+                 offset_ms);
+
+    if (last_offset != 0 && std::abs(offset_ns - last_offset) > 5e6) {
+        spdlog::warn("timesync offset jump detected: {} -> {} ms", 
+                     last_offset / 1e6, offset_ms);
+    }
+    last_offset = offset_ns;
         // spdlog::info("current time offset estimated: {} ms", system->get_timesync_offset_ns() / 1e6);
     }
     visualkit->sink().stop(false);
