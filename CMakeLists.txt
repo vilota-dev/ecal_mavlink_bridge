@@ -109,11 +109,13 @@ include_directories(
     # ${CMAKE_CURRENT_BINARY_DIR}/ecal-common/src/ # generated headers from capnp
     thirdparty/basalt-headers/thirdparty/eigen
     thirdparty/basalt-headers/thirdparty/Sophus
+    ${PROJECT_SOURCE_DIR}/include
 )
 
 # Specify your app's executable name, and list of source files used to create it.
 add_executable(ecal_odometry_mavlink_bridge
     src/ecal_odometry_mavlink_bridge.cpp
+    include/ecal_odometry_mavlink_bridge.hpp
     # ${CAPNP_SRCS}
     # ${CAPNP_HDRS}
     # ... any other source files
