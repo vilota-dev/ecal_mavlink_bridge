@@ -444,8 +444,44 @@ int main(int argc, char** argv)
     visualkit->sink().start();
 
     static int64_t last_offset = 0;
-    while (eCAL::Ok()) {
-        std::this_thread::sleep_for(seconds(10));
+    std::atomic_bool running = true;
+
+    // Command thread
+    std::thread input_thread([&]() {
+        while (running) {
+            std::cout << "\nA: Arm\nD: Disarm\nT: Takeoff\nM: Mission\nL: Land\nQ: Quit\nEnter command: ";
+            char cmd;
+            std::cin >> cmd;
+            cmd = std::toupper(cmd);
+
+            switch (cmd) {
+                case 'A':
+                    navigator.doArm();
+                    break;
+                case 'D':
+                    navigator.doDisarm();
+                    break;
+                case 'T':
+                    navigator.setTaskState(waypoint_navigator::TaskState::TAKEOFF);
+                    break;
+                case 'M':
+                    navigator.setTaskState(waypoint_navigator::TaskState::MISSION);
+                    break;
+                case 'L':
+                    navigator.setTaskState(waypoint_navigator::TaskState::LAND);
+                    break;
+                case 'Q':
+                    running = false;
+                    break;
+                default:
+                    std::cout << "Unknown command.\n";
+            }
+        }
+    });
+
+    // Main timesync monitor loop
+    while (eCAL::Ok() && running) {
+        std::this_thread::sleep_for(std::chrono::seconds(10));
         int64_t offset_ns = system->get_timesync_offset_ns();
         double offset_ms = offset_ns / 1e6;
 
@@ -458,37 +494,24 @@ int main(int argc, char** argv)
                         last_offset / 1e6, offset_ms);
         }
         last_offset = offset_ns;
-
-        std::cout << "\nA: Arm\nD: Disarm\nT: Takeoff\nM: Mission\nL: Land\nQ: Quit\nEnter command: ";
-        char cmd;
-        std::cin >> cmd;
-        cmd = std::toupper(cmd);
-
-        if (cmd == 'A')
-        {
-            navigator.doArm();
-        }
-        else if (cmd == 'D')
-        {
-            navigator.doDisarm();
-        }
-        else if (cmd == 'T')
-        {
-            navigator.setTaskState(waypoint_navigator::TaskState::TAKEOFF);
-        }
-        else if (cmd == 'M')
-        {
-            navigator.setTaskState(waypoint_navigator::TaskState::MISSION);
-        }
-        else if (cmd == 'L')
-        {
-            navigator.setTaskState(waypoint_navigator::TaskState::LAND);
-        }
-        else if (cmd == 'Q')
-        {
-            break;
-        }
     }
+
+    input_thread.join();  // Wait for the input thread to exit
+    // while (eCAL::Ok()) {
+    //     std::this_thread::sleep_for(seconds(10));
+    //     int64_t offset_ns = system->get_timesync_offset_ns();
+    //     double offset_ms = offset_ns / 1e6;
+
+    //     spdlog::info("system steady time now {} ms, current timesync offset {} ms", 
+    //                 std::chrono::steady_clock::now().time_since_epoch().count() / 1e6,
+    //                 offset_ms);
+
+    //     if (last_offset != 0 && std::abs(offset_ns - last_offset) > 5e6) {
+    //         spdlog::warn("timesync offset jump detected: {} -> {} ms", 
+    //                     last_offset / 1e6, offset_ms);
+    //     }
+    //     last_offset = offset_ns;
+    // }
     visualkit->sink().stop(false);
     visualkit->source().stop(false);
 
