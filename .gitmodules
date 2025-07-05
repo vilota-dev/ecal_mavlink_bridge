@@ -13,4 +13,4 @@
 	url = https://github.com/vilota-dev/MAVSDK.git
 [submodule "thirdparty/shiviz_px4_navigation"]
 	path = thirdparty/shiviz_px4_navigation
-	url = git@github.com:mamariomiamo/shiviz_px4_navigation.git
+	url = https://github.com/mamariomiamo/shiviz_px4_navigation.git
