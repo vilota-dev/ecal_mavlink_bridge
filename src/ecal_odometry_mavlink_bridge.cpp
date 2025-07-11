@@ -446,38 +446,93 @@ int main(int argc, char** argv)
     static int64_t last_offset = 0;
     std::atomic_bool running = true;
 
-    // Command thread
-    std::thread input_thread([&]() {
-        while (running) {
-            std::cout << "\nA: Arm\nD: Disarm\nT: Takeoff\nM: Mission\nL: Land\nQ: Quit\nEnter command: ";
-            char cmd;
-            std::cin >> cmd;
-            cmd = std::toupper(cmd);
+    mavsdk::MavlinkPassthrough mavlink_passthrough{system};
 
-            switch (cmd) {
-                case 'A':
-                    navigator.doArm();
-                    break;
-                case 'D':
-                    navigator.doDisarm();
-                    break;
-                case 'T':
-                    navigator.setTaskState(waypoint_navigator::TaskState::TAKEOFF);
-                    break;
-                case 'M':
-                    navigator.setTaskState(waypoint_navigator::TaskState::MISSION);
-                    break;
-                case 'L':
-                    navigator.setTaskState(waypoint_navigator::TaskState::LAND);
-                    break;
-                case 'Q':
-                    running = false;
-                    break;
-                default:
-                    std::cout << "Unknown command.\n";
+    std::atomic<waypoint_navigator::TaskState> last_task_state = waypoint_navigator::TaskState::IDLE;
+    uint16_t last_ch8 = 0;
+
+    mavlink_passthrough.subscribe_message(MAVLINK_MSG_ID_RC_CHANNELS,
+        [&](const mavlink_message_t& message) {
+            mavlink_rc_channels_t rc;
+            mavlink_msg_rc_channels_decode(&message, &rc);
+
+            uint16_t ch7 = rc.chan7_raw;
+            uint16_t ch8 = rc.chan8_raw;
+
+            // LAND: Always takes priority
+            if (ch8 >= 1800 && ch8 <= 2000 && last_task_state != waypoint_navigator::TaskState::LAND) {
+                navigator.setTaskState(waypoint_navigator::TaskState::LAND);
+                last_task_state = waypoint_navigator::TaskState::LAND;
+                spdlog::info("RC Command: LAND (CH8={})", ch8);
+                last_ch8 = ch8;
+                return;
             }
-        }
-    });
+
+            // IDLE: Edge-triggered only when entering 1000-1200 zone
+            if (ch8 >= 1000 && ch8 <= 1200 &&
+                !(last_ch8 >= 1000 && last_ch8 <= 1200) &&
+                last_task_state != waypoint_navigator::TaskState::IDLE) {
+                navigator.setTaskState(waypoint_navigator::TaskState::IDLE);
+                last_task_state = waypoint_navigator::TaskState::IDLE;
+                spdlog::info("RC Command: IDLE (CH8={} -> CH8={})", last_ch8, ch8);
+                last_ch8 = ch8;
+                return;
+            }
+
+            // Update CH8 for next call
+            last_ch8 = ch8;
+
+            // TAKEOFF: only from IDLE
+            if (last_task_state == waypoint_navigator::TaskState::IDLE &&
+                ch7 >= 1400 && ch7 <= 1600) {
+                navigator.setTaskState(waypoint_navigator::TaskState::TAKEOFF);
+                last_task_state = waypoint_navigator::TaskState::TAKEOFF;
+                spdlog::info("RC Command: TAKEOFF (CH7={})", ch7);
+                return;
+            }
+
+            // MISSION: only from TAKEOFF
+            if (last_task_state == waypoint_navigator::TaskState::TAKEOFF &&
+                ch7 >= 1800 && ch7 <= 2000) {
+                navigator.setTaskState(waypoint_navigator::TaskState::MISSION);
+                last_task_state = waypoint_navigator::TaskState::MISSION;
+                spdlog::info("RC Command: MISSION (CH7={})", ch7);
+                return;
+            }
+        });
+
+    // Command thread
+    // std::thread input_thread([&]() {
+    //     while (running) {
+    //         std::cout << "\nA: Arm\nD: Disarm\nT: Takeoff\nM: Mission\nL: Land\nQ: Quit\nEnter command: ";
+    //         char cmd;
+    //         std::cin >> cmd;
+    //         cmd = std::toupper(cmd);
+
+    //         switch (cmd) {
+    //             case 'A':
+    //                 navigator.doArm();
+    //                 break;
+    //             case 'D':
+    //                 navigator.doDisarm();
+    //                 break;
+    //             case 'T':
+    //                 navigator.setTaskState(waypoint_navigator::TaskState::TAKEOFF);
+    //                 break;
+    //             case 'M':
+    //                 navigator.setTaskState(waypoint_navigator::TaskState::MISSION);
+    //                 break;
+    //             case 'L':
+    //                 navigator.setTaskState(waypoint_navigator::TaskState::LAND);
+    //                 break;
+    //             case 'Q':
+    //                 running = false;
+    //                 break;
+    //             default:
+    //                 std::cout << "Unknown command.\n";
+    //         }
+    //     }
+    // });
 
     // Main timesync monitor loop
     while (eCAL::Ok() && running) {
@@ -496,7 +551,7 @@ int main(int argc, char** argv)
         last_offset = offset_ns;
     }
 
-    input_thread.join();  // Wait for the input thread to exit
+    // input_thread.join();  // Wait for the input thread to exit
     // while (eCAL::Ok()) {
     //     std::this_thread::sleep_for(seconds(10));
     //     int64_t offset_ns = system->get_timesync_offset_ns();
