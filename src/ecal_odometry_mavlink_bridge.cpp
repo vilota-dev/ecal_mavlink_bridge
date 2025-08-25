@@ -1,4 +1,5 @@
 #include "ecal_odometry_mavlink_bridge.hpp"
+#include "waypoint_navigator/waypoint_navigator.hpp"
 
 using namespace mavsdk;
 using namespace ecal_mavlink;
@@ -17,6 +18,7 @@ void usage(const std::string& bin_name)
               << " For UDP : udp://[bind_host][:bind_port]\n"
               << " For Serial : serial:///path/to/serial/dev[:baudrate]\n"
               << "Followed by 0 for VK180 or 1 for VK180P\n"
+              << "Followed by path to waypoint mission yaml file\n"
               << "For example, to connect to the simulator use URL: udp://:14540\n";
 }
 
@@ -302,7 +304,7 @@ void EcalLocalPositionSender::callback(Telemetry::PositionVelocityNed local_posi
 
 int main(int argc, char** argv)
 {
-    if (argc < 3 || argc > 4) {
+    if (argc < 4 || argc > 5) {
         usage(argv[0]);
         return 1;
     }
@@ -319,12 +321,15 @@ int main(int argc, char** argv)
         return 1;
     }
 
+    // waypoint mission file
+    const std::string yaml_path = argv[3];
+
     // we will also add the connection to gcs
 
-    if (argc == 4) {
+    if (argc == 5) {
 
-        std::cout << "connecting to gcs at " << argv[3] << std::endl;
-        connection_result = mavsdk.add_any_connection(argv[3], argc == 4 ? ForwardingOption::ForwardingOn : ForwardingOption::ForwardingOff);
+        std::cout << "connecting to gcs at " << argv[4] << std::endl;
+        connection_result = mavsdk.add_any_connection(argv[4], argc == 5 ? ForwardingOption::ForwardingOn : ForwardingOption::ForwardingOff);
 
         if (connection_result != ConnectionResult::Success) {
             std::cerr << "Connection failed to gcs: " << connection_result << '\n';
@@ -351,6 +356,18 @@ int main(int argc, char** argv)
             break;
     }
 
+    waypoint_navigator::WaypointNavigator navigator(system);
+    if (!navigator.loadWaypointsFromYaml(yaml_path))
+    {
+        spdlog::error("Failed to load waypoints from YAML: {}", yaml_path);
+        return 1;
+    }
+
+    /*
+    telemetry.set_rate_position_velocity_ned(10.0); // 10 Hz update rate for position and velocity
+    telemetry.set_rate_attitude_euler(10.0);        // also throttle euler attitude updates
+    */
+
     auto ned_receiver = visualkit->sink().obtain(tf_prefix + "local_position_ned", vkc::Type<vkc::Odometry3d>());
     auto nwu_receiver = visualkit->sink().obtain(tf_prefix + "local_position", vkc::Type<vkc::Odometry3d>());
     EcalLocalPositionSender ecalLocalPositionSender(std::move(ned_receiver), std::move(nwu_receiver));
@@ -363,6 +380,15 @@ int main(int argc, char** argv)
                 return;
             }
             ecalLocalPositionSender.callback(local_position, tele_quat);
+
+            auto telem_euler = telemetry.attitude_euler();
+            navigator.updateLocalPose(local_position, telem_euler);
+        }
+    );
+
+    telemetry.subscribe_flight_mode([&navigator](Telemetry::FlightMode flight_mode)
+                                    {
+        navigator.updateFlightMode(flight_mode);
         }
     );
 
@@ -418,21 +444,129 @@ int main(int argc, char** argv)
     visualkit->sink().start();
 
     static int64_t last_offset = 0;
-    while (eCAL::Ok()) {
-        std::this_thread::sleep_for(seconds(10));
+    std::atomic_bool running = true;
+
+    mavsdk::MavlinkPassthrough mavlink_passthrough{system};
+
+    std::atomic<waypoint_navigator::TaskState> last_task_state = waypoint_navigator::TaskState::IDLE;
+    uint16_t last_ch8 = 0;
+
+    mavlink_passthrough.subscribe_message(MAVLINK_MSG_ID_RC_CHANNELS,
+        [&](const mavlink_message_t& message) {
+            mavlink_rc_channels_t rc;
+            mavlink_msg_rc_channels_decode(&message, &rc);
+
+            uint16_t ch7 = rc.chan7_raw;
+            uint16_t ch8 = rc.chan8_raw;
+
+            // LAND: Always takes priority
+            if (ch8 >= 1800 && ch8 <= 2000 && last_task_state != waypoint_navigator::TaskState::LAND) {
+                navigator.setTaskState(waypoint_navigator::TaskState::LAND);
+                last_task_state = waypoint_navigator::TaskState::LAND;
+                spdlog::info("RC Command: LAND (CH8={})", ch8);
+                last_ch8 = ch8;
+                return;
+            }
+
+            // IDLE: Edge-triggered only when entering 1000-1200 zone
+            if (ch8 >= 1000 && ch8 <= 1200 &&
+                !(last_ch8 >= 1000 && last_ch8 <= 1200) &&
+                last_task_state != waypoint_navigator::TaskState::IDLE) {
+                navigator.setTaskState(waypoint_navigator::TaskState::IDLE);
+                last_task_state = waypoint_navigator::TaskState::IDLE;
+                spdlog::info("RC Command: IDLE (CH8={} -> CH8={})", last_ch8, ch8);
+                last_ch8 = ch8;
+                return;
+            }
+
+            // Update CH8 for next call
+            last_ch8 = ch8;
+
+            // TAKEOFF: only from IDLE
+            if (last_task_state == waypoint_navigator::TaskState::IDLE &&
+                ch7 >= 1400 && ch7 <= 1600) {
+                navigator.setTaskState(waypoint_navigator::TaskState::TAKEOFF);
+                last_task_state = waypoint_navigator::TaskState::TAKEOFF;
+                spdlog::info("RC Command: TAKEOFF (CH7={})", ch7);
+                return;
+            }
+
+            // MISSION: only from TAKEOFF
+            if (last_task_state == waypoint_navigator::TaskState::TAKEOFF &&
+                ch7 >= 1800 && ch7 <= 2000) {
+                navigator.setTaskState(waypoint_navigator::TaskState::MISSION);
+                last_task_state = waypoint_navigator::TaskState::MISSION;
+                spdlog::info("RC Command: MISSION (CH7={})", ch7);
+                return;
+            }
+        });
+
+    // Command thread
+    // std::thread input_thread([&]() {
+    //     while (running) {
+    //         std::cout << "\nA: Arm\nD: Disarm\nT: Takeoff\nM: Mission\nL: Land\nQ: Quit\nEnter command: ";
+    //         char cmd;
+    //         std::cin >> cmd;
+    //         cmd = std::toupper(cmd);
+
+    //         switch (cmd) {
+    //             case 'A':
+    //                 navigator.doArm();
+    //                 break;
+    //             case 'D':
+    //                 navigator.doDisarm();
+    //                 break;
+    //             case 'T':
+    //                 navigator.setTaskState(waypoint_navigator::TaskState::TAKEOFF);
+    //                 break;
+    //             case 'M':
+    //                 navigator.setTaskState(waypoint_navigator::TaskState::MISSION);
+    //                 break;
+    //             case 'L':
+    //                 navigator.setTaskState(waypoint_navigator::TaskState::LAND);
+    //                 break;
+    //             case 'Q':
+    //                 running = false;
+    //                 break;
+    //             default:
+    //                 std::cout << "Unknown command.\n";
+    //         }
+    //     }
+    // });
+
+    // Main timesync monitor loop
+    while (eCAL::Ok() && running) {
+        std::this_thread::sleep_for(std::chrono::seconds(10));
         int64_t offset_ns = system->get_timesync_offset_ns();
-    double offset_ms = offset_ns / 1e6;
+        double offset_ms = offset_ns / 1e6;
 
-    spdlog::info("system steady time now {} ms, current timesync offset {} ms", 
-                 std::chrono::steady_clock::now().time_since_epoch().count() / 1e6,
-                 offset_ms);
+        spdlog::info("system steady time now {} ms, current timesync offset {} ms", 
+                    std::chrono::steady_clock::now().time_since_epoch().count() / 1e6,
+                    offset_ms);
 
-    if (last_offset != 0 && std::abs(offset_ns - last_offset) > 5e6) {
-        spdlog::warn("timesync offset jump detected: {} -> {} ms", 
-                     last_offset / 1e6, offset_ms);
+        if (last_offset != 0 && std::abs(offset_ns - last_offset) > 5e6) {
+            spdlog::warn("timesync offset jump detected: {} -> {} ms", 
+                        last_offset / 1e6, offset_ms);
+        }
+        last_offset = offset_ns;
     }
-    last_offset = offset_ns;
-    }
+
+    // input_thread.join();  // Wait for the input thread to exit
+    // while (eCAL::Ok()) {
+    //     std::this_thread::sleep_for(seconds(10));
+    //     int64_t offset_ns = system->get_timesync_offset_ns();
+    //     double offset_ms = offset_ns / 1e6;
+
+    //     spdlog::info("system steady time now {} ms, current timesync offset {} ms", 
+    //                 std::chrono::steady_clock::now().time_since_epoch().count() / 1e6,
+    //                 offset_ms);
+
+    //     if (last_offset != 0 && std::abs(offset_ns - last_offset) > 5e6) {
+    //         spdlog::warn("timesync offset jump detected: {} -> {} ms", 
+    //                     last_offset / 1e6, offset_ms);
+    //     }
+    //     last_offset = offset_ns;
+    // }
     visualkit->sink().stop(false);
     visualkit->source().stop(false);
 

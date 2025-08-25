@@ -121,6 +121,9 @@ add_executable(ecal_odometry_mavlink_bridge
     # ... any other source files
 )
 
+# waypoint navigator library
+add_subdirectory(thirdparty/shiviz_px4_navigation)
+
 # Specify your app's executable name and a list of linked libraries
 target_link_libraries(ecal_odometry_mavlink_bridge
     MAVSDK::mavsdk              #All apps link against mavsdk library
@@ -128,6 +131,7 @@ target_link_libraries(ecal_odometry_mavlink_bridge
     CapnProto::capnp
     eCAL::core
     vilota::vk_sdk
+    shiviz_px4_navigation::WaypointNavigator
     # ... Any other linked libraries
 )
 
