@@ -33,8 +33,12 @@ message(STATUS "CMAKE_CXX_FLAGS = ${CMAKE_CXX_FLAGS}")
 add_definitions("-Wall -Wextra -Werror")
 
 # Set default installation directory
+# if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+#     set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/install" CACHE PATH "Installation Directory" FORCE)
+# endif()
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
-    set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/install" CACHE PATH "Installation Directory" FORCE)
+    # 替换原来的 "${CMAKE_BINARY_DIR}/install" 为 "/opt/ecal_mavlink_bridge"
+    set(CMAKE_INSTALL_PREFIX "/opt/ecal_mavlink_bridge" CACHE PATH "Installation Directory" FORCE)
 endif()
 
 # turn off dependency of fmt in Sophus
@@ -114,12 +118,12 @@ include_directories(
 # Specify your app's executable name, and list of source files used to create it.
 add_executable(ecal_odometry_mavlink_bridge
     src/ecal_odometry_mavlink_bridge.cpp
-    # ${CAPNP_SRCS}
-    # ${CAPNP_HDRS}
+    ${CAPNP_SRCS}
+    ${CAPNP_HDRS}
     # ... any other source files
 )
 
-# Specify your app's executable name and a list of linked libraries
+# # Specify your app's executable name and a list of linked libraries
 target_link_libraries(ecal_odometry_mavlink_bridge
     MAVSDK::mavsdk              #All apps link against mavsdk library
     spdlog::spdlog
@@ -129,22 +133,67 @@ target_link_libraries(ecal_odometry_mavlink_bridge
     # ... Any other linked libraries
 )
 
-install(TARGETS ecal_odometry_mavlink_bridge test_timesync send_vision_position_estimate
-EXPORT EcalOdometryMavlinkBridgeTargets
-# RUNTIME DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
-# LIBRARY DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
-# ARCHIVE DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
+# install(TARGETS ecal_odometry_mavlink_bridge test_timesync send_vision_position_estimate
+# EXPORT EcalOdometryMavlinkBridgeTargets
+# # RUNTIME DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
+# # LIBRARY DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
+# # ARCHIVE DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
+# )
+# set_target_properties(ecal_odometry_mavlink_bridge PROPERTIES INSTALL_RPATH "$ORIGIN/../lib" )
+# set_target_properties(test_timesync PROPERTIES INSTALL_RPATH "$ORIGIN/../lib" )
+# set_target_properties(send_vision_position_estimate PROPERTIES INSTALL_RPATH "$ORIGIN/../lib" )
+
+# # hardcode is easier to manage, than automation script
+# file(GLOB SDK_TO_INSTALL "${cmake_config_DIR}/../libmavsdk.so*")
+# install(
+# FILES 
+#   ${SDK_TO_INSTALL}
+# TYPE LIB)
+
+# set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/" ${CMAKE_MODULE_PATH})
+# include(CPackConfigDeb)
+
+
+# 安装所有可执行程序（主程序 + 测试程序）
+install(TARGETS 
+    ecal_odometry_mavlink_bridge  # 主程序
+    test_timesync                 # 测试程序 1
+    send_vision_position_estimate # 测试程序 2
+    EXPORT EcalOdometryMavlinkBridgeTargets
+    RUNTIME DESTINATION bin       # 可执行程序安装到 /opt/ecal_mavlink_bridge/bin
+    LIBRARY DESTINATION lib       # 若有共享库，安装到 /opt/ecal_mavlink_bridge/lib
+    ARCHIVE DESTINATION lib       # 若有静态库，安装到 /opt/ecal_mavlink_bridge/lib
 )
+
+# 保留 RPATH 配置（确保程序运行时能找到依赖库）
 set_target_properties(ecal_odometry_mavlink_bridge PROPERTIES INSTALL_RPATH "$ORIGIN/../lib" )
 set_target_properties(test_timesync PROPERTIES INSTALL_RPATH "$ORIGIN/../lib" )
 set_target_properties(send_vision_position_estimate PROPERTIES INSTALL_RPATH "$ORIGIN/../lib" )
 
-# hardcode is easier to manage, than automation script
-file(GLOB SDK_TO_INSTALL "${cmake_config_DIR}/../libmavsdk.so*")
+# 方法1：若 MAVSDK 安装在系统目录，用 find_library 自动查找
+# find_library(MAVSDK_LIB mavsdk REQUIRED)  # 查找 libmavsdk.so
+# 方法2：若 MAVSDK 是本地编译，手动指定路径（如你之前注释的路径）
+set(MAVSDK_SO "${CMAKE_SOURCE_DIR}/cache/MAVSDK-install/lib/libmavsdk.so")
+set(MAVSDK_SO_VERSION "${CMAKE_SOURCE_DIR}/cache/MAVSDK-install/lib/libmavsdk.so.694df0bb")
+set(MAVSDK_SO_FULL "${CMAKE_SOURCE_DIR}/cache/MAVSDK-install/lib/libmavsdk.so.694df0bb.694df0bb.694df0bb")
+# 安装 MAVSDK 共享库到 /opt/ecal_mavlink_bridge/lib
 install(
-FILES 
-  ${SDK_TO_INSTALL}
-TYPE LIB)
+    FILES 
+    ${MAVSDK_SO}          # 第一层符号链接：libmavsdk.so
+    ${MAVSDK_SO_VERSION}  # 第二层符号链接：libmavsdk.so.694df0bb
+    ${MAVSDK_SO_FULL}     # 实际库文件：libmavsdk.so.694df0bb.694df0bb.694df0bb
+    DESTINATION lib  # 对应 /opt/ecal_mavlink_bridge/lib
+)
 
+set(VK_SDK_LIB_PATH "/opt/vilota/lib/libvk_sdk.so.1.4.0")
+set(VK_SDK_LINK_PATH "/opt/vilota/lib/libvk_sdk.so")
+install(
+  FILES 
+  ${VK_SDK_LIB_PATH}
+  ${VK_SDK_LINK_PATH}
+  DESTINATION lib
+)
+
+set(CPACK_PACKAGING_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}")
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/" ${CMAKE_MODULE_PATH})
-include(CPackConfigDeb)
+include(common)
