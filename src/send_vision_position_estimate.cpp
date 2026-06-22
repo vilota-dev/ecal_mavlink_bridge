@@ -100,7 +100,7 @@ void run_fake_odometry_send(std::shared_ptr<System> system)
         else if (ret == Mocap::Result::Success)
             spdlog::debug("mocap sent success");
         else
-            spdlog::warn("mocap send other error {}", ret);
+            spdlog::warn("mocap send other error {}", static_cast<int>(ret));
         count++;
         if (count % 100 == 0)
             std::cout << "vision position estimate: " << zero << std::endl;

@@ -23,8 +23,6 @@
 #include <memory>
 #include <thread>
 
-#include <sophus/se3.hpp>
-
 using namespace mavsdk;
 using std::chrono::seconds;
 using std::chrono::milliseconds;
@@ -32,6 +30,41 @@ using std::chrono::milliseconds;
 constexpr int AUTOPILOT_HEARTBEAT_TIMEOUT_S = 7;
 
 #define UNUSED(x) (void)(x)
+
+struct LocalPositionNwu {
+    double x;
+    double y;
+    double z;
+};
+
+struct LocalQuaternionNwu {
+    double w;
+    double x;
+    double y;
+    double z;
+};
+
+LocalPositionNwu convert_ned_position_to_nwu(const Telemetry::PositionNed& position_ned)
+{
+    return {
+        position_ned.north_m,
+        -position_ned.east_m,
+        -position_ned.down_m
+    };
+}
+
+LocalQuaternionNwu convert_ned_orientation_to_nwu(const Telemetry::Quaternion& orientation_ned)
+{
+    // NED -> NWU is a basis change by diag(1, -1, -1). Conjugating the
+    // rotation by that basis flip keeps the same physical attitude while
+    // expressing it in the NWU frame.
+    return {
+        orientation_ned.w,
+        orientation_ned.x,
+        -orientation_ned.y,
+        -orientation_ned.z
+    };
+}
 
 void usage(const std::string& bin_name)
 {
@@ -147,7 +180,7 @@ class VkcOdomReceiver: public vkc::Receiver<vkc::Odometry3d> {
         else if (ret == Mocap::Result::Success)
             spdlog::debug("mocap sent success");
         else
-            spdlog::warn("mocap send other error {}", ret);
+            spdlog::warn("mocap send other error {}", static_cast<int>(ret));
         
         if (count % 100 == 0)
             std::cout << "mavlink odometry message sent to px4: " << m_odom_msg << std::endl;
@@ -305,11 +338,11 @@ class EcalMavStateSender {
         else if (mode == Telemetry::FlightMode::Offboard)
             m_mode = vkc::MavState::FlightModePX4::OFFBOARD;
         else {
-            spdlog::warn("flight mode not recognised {}", mode);
+            spdlog::warn("flight mode not recognised {}", static_cast<int>(mode));
         }
 
         if (lastMode != m_mode) {
-            spdlog::warn("flight mode changes to {}", mode);
+            spdlog::warn("flight mode changes to {}", static_cast<int>(mode));
         }
             
 
@@ -389,7 +422,6 @@ class EcalLocalPositionSender {
             auto header = odomBuilder.getHeader();
             header.setStampMonotonic(tns);
             header.setSeq(header.getSeq() + 1);
-            header.setClockDomain(vkc::Header::ClockDomain::MONOTONIC);
             odomBuilder.setBodyFrame(vkc::Odometry3d::BodyFrame::NED);
             odomBuilder.setReferenceFrame(vkc::Odometry3d::ReferenceFrame::NED);
             odomBuilder.setVelocityFrame(vkc::Odometry3d::VelocityFrame::NONE);
@@ -410,57 +442,29 @@ class EcalLocalPositionSender {
 
         // nwu publisher
         {
-            Eigen::Vector3d position_ned = {
-                local_position.position.north_m,
-                local_position.position.east_m,
-                local_position.position.down_m
-            };
-
-            Eigen::Quaterniond orientation_ned = {
-                attitude_quat.w,
-                attitude_quat.x,
-                attitude_quat.y,
-                attitude_quat.z
-            };
-
-            Sophus::SE3d T_ned;
-
-            T_ned.translation() = position_ned;
-            T_ned.setQuaternion(orientation_ned);
-
-            // transform ned to nwu
-            Sophus::Matrix3d R_ned_nwu;
-            // change of coordinates from NWU to NED
-            Sophus::SE3d T_ned_nwu;
-            R_ned_nwu << 1, 0, 0, 0, -1, 0, 0, 0, -1;
-            T_ned_nwu.setRotationMatrix(R_ned_nwu);
-            T_ned_nwu.translation().setZero();
-
-            Sophus::SE3d T_nwu_nwu;
-            T_nwu_nwu = T_ned_nwu.inverse() * T_ned * T_ned_nwu;
+            const auto position_nwu = convert_ned_position_to_nwu(local_position.position);
+            const auto orientation_nwu = convert_ned_orientation_to_nwu(attitude_quat);
 
             {
                 auto builder = std::make_unique<capnp::MallocMessageBuilder>();
                 vkc::Odometry3d::Builder odomBuilder = builder->initRoot<vkc::Odometry3d>();
                 auto header = odomBuilder.getHeader();
-                header.setClockDomain(vkc::Header::ClockDomain::MONOTONIC);
                 header.setStampMonotonic(tns);
                 header.setSeq(header.getSeq() + 1);
                     
                 odomBuilder.setBodyFrame(vkc::Odometry3d::BodyFrame::NWU);
                 odomBuilder.setReferenceFrame(vkc::Odometry3d::ReferenceFrame::NWU);
                 odomBuilder.setVelocityFrame(vkc::Odometry3d::VelocityFrame::NONE);
-                auto quat = T_nwu_nwu.unit_quaternion();
                 auto orientation = odomBuilder.getPose().getOrientation();
-                orientation.setW(quat.w());
-                orientation.setX(quat.x());
-                orientation.setY(quat.y());
-                orientation.setZ(quat.z());
+                orientation.setW(orientation_nwu.w);
+                orientation.setX(orientation_nwu.x);
+                orientation.setY(orientation_nwu.y);
+                orientation.setZ(orientation_nwu.z);
 
                 auto position = odomBuilder.getPose().getPosition();
-                position.setX(T_nwu_nwu.translation().x());
-                position.setY(T_nwu_nwu.translation().y());
-                position.setZ(T_nwu_nwu.translation().z());
+                position.setX(position_nwu.x);
+                position.setY(position_nwu.y);
+                position.setZ(position_nwu.z);
                 auto shared = vkc::Shared<vkc::Odometry3d>(std::move(builder));
 
                 m_pubLocalPositionNWU->handle(shared);
@@ -600,8 +604,11 @@ int main(int argc, char** argv)
     // MavlinkOdometrySender mavOdometrySender{system};
 
     // std::thread t_odometry_send(run_fake_odometry_send, system);    
-    eCAL::Initialize(0, nullptr, "ecal odometry mavlink bridge");
-    eCAL::Process::SetState(proc_sev_healthy, proc_sev_level1, "I feel good !");
+    eCAL::Initialize("ecal odometry mavlink bridge");
+    eCAL::Process::SetState(
+        eCAL::Process::eSeverity::healthy,
+        eCAL::Process::eSeverityLevel::level1,
+        "I feel good !");
 
     spdlog::info("eCAL Version: {}", eCAL::GetVersionString());
 

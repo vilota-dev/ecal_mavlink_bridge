@@ -1,10 +1,6 @@
 [submodule "thirdparty/ecal-common"]
 	path = thirdparty/ecal-common
 	url = https://github.com/vilota-dev/ecal-common.git
-[submodule "thirdparty/basalt-headers"]
-	path = thirdparty/basalt-headers
-	url = https://github.com/chengguizi/basalt-headers.git
-	branch = master-sqrt
 [submodule "thirdparty/spdlog"]
 	path = thirdparty/spdlog
 	url = https://github.com/gabime/spdlog.git

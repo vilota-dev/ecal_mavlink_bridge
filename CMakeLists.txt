@@ -41,9 +41,6 @@ if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
     set(CMAKE_INSTALL_PREFIX "/opt/ecal_mavlink_bridge" CACHE PATH "Installation Directory" FORCE)
 endif()
 
-# turn off dependency of fmt in Sophus
-add_compile_definitions(SOPHUS_USE_BASIC_LOGGING)
-
 set(CMAKE_FIND_LIBRARY_SUFFIXES ${CMAKE_STATIC_LIBRARY_SUFFIX})
 add_subdirectory(thirdparty/spdlog)
 
@@ -108,12 +105,6 @@ target_link_libraries(send_vision_position_estimate
 #     thirdparty/ecal-common/src/capnp/odometry3d.capnp
 #     thirdparty/ecal-common/src/capnp/mavstate.capnp
 # )
-
-include_directories(
-    # ${CMAKE_CURRENT_BINARY_DIR}/ecal-common/src/ # generated headers from capnp
-    thirdparty/basalt-headers/thirdparty/eigen
-    thirdparty/basalt-headers/thirdparty/Sophus
-)
 
 # Specify your app's executable name, and list of source files used to create it.
 add_executable(ecal_odometry_mavlink_bridge
