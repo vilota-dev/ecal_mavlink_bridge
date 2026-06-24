@@ -22,10 +22,10 @@ set(CMAKE_CXX_FLAGS_RELWITHASSERT "-O3")
 set(CMAKE_CXX_FLAGS_RELWITHEIGENNAN  "-O3 -DEIGEN_INITIALIZE_MATRICES_BY_NAN")   # enable nan initialisation for eigen
 
 # flags for error
-set(BASALT_CXX_FLAGS "${BASALT_CXX_FLAGS} -Wno-error=class-memaccess")
+set(PROJECT_WARNING_COMPAT_FLAGS "${PROJECT_WARNING_COMPAT_FLAGS} -Wno-error=class-memaccess")
 
 # setup compiler flags
-set(CMAKE_CXX_FLAGS "${BASALT_CXX_FLAGS}")
+set(CMAKE_CXX_FLAGS "${PROJECT_WARNING_COMPAT_FLAGS}")
 
 message(STATUS "CMAKE_CXX_FLAGS = ${CMAKE_CXX_FLAGS}")
 
