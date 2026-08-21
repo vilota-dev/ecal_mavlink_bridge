@@ -604,8 +604,16 @@ int main(int argc, char** argv)
     // MavlinkOdometrySender mavOdometrySender{system};
 
     // std::thread t_odometry_send(run_fake_odometry_send, system);    
+#if ECAL_VERSION_MAJOR >= 6
+    eCAL::Initialize("ecal odometry mavlink bridge");
+    eCAL::Process::SetState(
+        eCAL::Process::eSeverity::healthy,
+        eCAL::Process::eSeverityLevel::level1,
+        "I feel good !");
+#else
     eCAL::Initialize(0, nullptr, "ecal odometry mavlink bridge");
     eCAL::Process::SetState(proc_sev_healthy, proc_sev_level1, "I feel good !");
+#endif
 
     spdlog::info("eCAL Version: {}", eCAL::GetVersionString());
 
