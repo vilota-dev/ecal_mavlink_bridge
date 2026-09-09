@@ -135,14 +135,25 @@ class VkcOdomReceiver: public vkc::Receiver<vkc::Odometry3d> {
         m_odom_msg.pose_covariance.covariance_matrix[0] = NAN;
         m_odom_msg.velocity_covariance.covariance_matrix.resize(1);
         m_odom_msg.velocity_covariance.covariance_matrix[0] = NAN;
-        m_odom_msg.mav_estimator = Mocap::Odometry::MavEstimator::Vision;
+        m_odom_msg.frame_id = Mocap::Odometry::MavFrame::LocalFrd;
+        m_odom_msg.estimator_type = Mocap::Odometry::MavEstimatorType::Vision;
+        m_odom_msg.reset_counter = 0;
+        m_odom_msg.quality_percent = 0;
         count = 0;
     }
     vkc::ReceiverStatus handle(const vkc::Message<vkc::Shared<vkc::Odometry3d>>& message) override {
         auto reader = message.payload.reader();
         const auto& header =  reader.getHeader();
         auto seq = header.getSeq();
-        auto tns = header.getStampMonotonic() + header.getClockOffset();
+        const int64_t capture_monotonic_ns =
+            static_cast<int64_t>(header.getStampMonotonic());
+        const int64_t capture_system_ns =
+            capture_monotonic_ns + header.getClockOffset();
+
+        if (capture_system_ns <= 0) {
+            spdlog::warn("invalid odometry capture system timestamp for seq = {}", seq);
+            return vkc::ReceiverStatus::Open;
+        }
 
         Mocap::PositionBody p;
         auto position = reader.getPose().getPosition();
@@ -157,10 +168,18 @@ class VkcOdomReceiver: public vkc::Receiver<vkc::Odometry3d> {
         q.y = orientation.getY();
         q.z = orientation.getZ();
 
-        if (Send(tns, p, q)) {
-            std::uint64_t nowTns = std::chrono::steady_clock::now().time_since_epoch().count();
+        if (Send(static_cast<uint64_t>(capture_system_ns), p, q)) {
+            const int64_t now_monotonic_ns =
+                std::chrono::duration_cast<std::chrono::nanoseconds>(
+                    std::chrono::steady_clock::now().time_since_epoch())
+                    .count();
             
-            spdlog::debug("odometry of seq = {}, ts = {} sent at host ts = {}, latency = {} ms", seq, tns, nowTns, (nowTns - tns) / 1e6);
+            spdlog::debug(
+                "odometry of seq = {}, system ts = {} sent at host monotonic ts = {}, latency = {} ms",
+                seq,
+                capture_system_ns,
+                now_monotonic_ns,
+                (now_monotonic_ns - capture_monotonic_ns) / 1e6);
         }else
             spdlog::warn("failed to send odometry over mavlink to px4");
         
@@ -169,7 +188,7 @@ class VkcOdomReceiver: public vkc::Receiver<vkc::Odometry3d> {
 
     bool Send(uint64_t tns, Mocap::PositionBody& p, Mocap::Quaternion& q)
     {
-        m_odom_msg.time_usec = tns / 1e3;
+        m_odom_msg.time_usec = tns / 1000;
         m_odom_msg.position_body = p;
         m_odom_msg.q = q;
 
@@ -209,8 +228,11 @@ class VkcOdomReceiver: public vkc::Receiver<vkc::Odometry3d> {
 //         m_odom_msg.velocity_covariance.covariance_matrix.resize(1);
 //         m_odom_msg.velocity_covariance.covariance_matrix[0] = NAN;
 
-//         // hardcode as vision now
-//         m_odom_msg.mav_estimator = Mocap::Odometry::MavEstimator::Vision;
+//         // hardcode as local-FRD vision odometry now
+//         m_odom_msg.frame_id = Mocap::Odometry::MavFrame::LocalFrd;
+//         m_odom_msg.estimator_type = Mocap::Odometry::MavEstimatorType::Vision;
+//         m_odom_msg.reset_counter = 0;
+//         m_odom_msg.quality_percent = 0;
 
 //         count = 0;
 //     }
@@ -487,7 +509,7 @@ int main(int argc, char** argv)
     
     const std::string tf_prefix = "S" + std::string(argv[2]) +"/";
 
-    mavsdk::Mavsdk::Configuration configuration{mavsdk::Mavsdk::ComponentType::GroundStation};
+    mavsdk::Mavsdk::Configuration configuration{mavsdk::ComponentType::GroundStation};
     mavsdk::Mavsdk mavsdk(configuration);
 
     ConnectionResult connection_result = mavsdk.add_any_connection(argv[1], argc == 4 ? ForwardingOption::ForwardingOn : ForwardingOption::ForwardingOff);
@@ -567,8 +589,10 @@ int main(int argc, char** argv)
             std::uint64_t tns = std::chrono::steady_clock::now().time_since_epoch().count();
 
             if (tns - last_odometry > 5e9) {
-                uint64_t time_usec = odometry_data.time_usec - system->get_timesync_offset_ns() / 1e3;
-                spdlog::info("{} odometry received at host: {} {} {} ", time_usec, 
+                const int64_t companion_system_time_usec =
+                    static_cast<int64_t>(odometry_data.time_usec) -
+                    system->get_timesync_offset_ns() / 1000;
+                spdlog::info("{} odometry received at host: {} {} {} ", companion_system_time_usec,
                     odometry_data.position_body.x_m, odometry_data.position_body.y_m, odometry_data.position_body.z_m);
 
                 last_odometry =  tns;

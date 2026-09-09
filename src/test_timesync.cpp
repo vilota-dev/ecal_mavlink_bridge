@@ -65,7 +65,7 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    mavsdk::Mavsdk::Configuration configuration{mavsdk::Mavsdk::ComponentType::GroundStation};
+    mavsdk::Mavsdk::Configuration configuration{mavsdk::ComponentType::GroundStation};
     mavsdk::Mavsdk mavsdk(configuration);
 
     ConnectionResult connection_result = mavsdk.add_any_connection(argv[1]);
@@ -103,13 +103,15 @@ int main(int argc, char** argv)
 
     telemetry.subscribe_scaled_imu(
         [system] (Telemetry::Imu imu_data) {
-            uint64_t timestamp_us =  imu_data.timestamp_us - system->get_timesync_offset_ns() / 1e3;
+            const int64_t timestamp_us = static_cast<int64_t>(imu_data.timestamp_us) -
+                                         system->get_timesync_offset_ns() / 1000;
             spdlog::info("imu scaled raw_ts = {} ms,  host_ts = {} ms", imu_data.timestamp_us / 1e3, timestamp_us / 1e3);
     });
 
     telemetry.subscribe_imu(
         [system] (Telemetry::Imu imu_data) {
-            uint64_t timestamp_us =  imu_data.timestamp_us - system->get_timesync_offset_ns() / 1e3;
+            const int64_t timestamp_us = static_cast<int64_t>(imu_data.timestamp_us) -
+                                         system->get_timesync_offset_ns() / 1000;
             spdlog::info("imu highres raw_ts = {} ms,  host_ts = {} ms", imu_data.timestamp_us / 1e3, timestamp_us / 1e3);
         }
     );
@@ -122,8 +124,13 @@ int main(int argc, char** argv)
 
     while (true) {
         std::this_thread::sleep_for(std::chrono::seconds(1));
-        spdlog::info("system steady time now {} ms", std::chrono::steady_clock::now().time_since_epoch().count() / 1e6);
-        spdlog::info("current time offset estimated: {} ms", system->get_timesync_offset_ns() / 1e6);
+        const auto system_time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                        std::chrono::system_clock::now().time_since_epoch())
+                                        .count();
+        spdlog::info("companion system time now {} ms", system_time_ms);
+        spdlog::info(
+            "current PX4-minus-companion-system offset estimate: {} ms",
+            system->get_timesync_offset_ns() / 1e6);
     }
 
     

@@ -89,7 +89,9 @@ void run_fake_odometry_send(std::shared_ptr<System> system)
     uint64_t count = 0;
     while (true) {
         Mocap::VisionPositionEstimate zero{};
-        zero.time_usec = std::chrono::steady_clock::now().time_since_epoch().count() / 1e3;
+        zero.time_usec = std::chrono::duration_cast<std::chrono::microseconds>(
+                             std::chrono::system_clock::now().time_since_epoch())
+                             .count();
         zero.pose_covariance.covariance_matrix.resize(1);
         zero.pose_covariance.covariance_matrix[0] = NAN;
         
@@ -115,7 +117,7 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    mavsdk::Mavsdk::Configuration configuration{mavsdk::Mavsdk::ComponentType::GroundStation};
+    mavsdk::Mavsdk::Configuration configuration{mavsdk::ComponentType::GroundStation};
     mavsdk::Mavsdk mavsdk(configuration);
 
     ConnectionResult connection_result = mavsdk.add_any_connection(argv[1]);
@@ -168,8 +170,10 @@ int main(int argc, char** argv)
 
     telemetry.subscribe_odometry(
         [system] (Telemetry::Odometry odometry_data) {
-            uint64_t time_usec = odometry_data.time_usec - system->get_timesync_offset_ns() / 1e3;
-            spdlog::info("{} odometry received at host: {} {} {} ", time_usec, 
+            const int64_t companion_system_time_usec =
+                static_cast<int64_t>(odometry_data.time_usec) -
+                system->get_timesync_offset_ns() / 1000;
+            spdlog::info("{} odometry received at host: {} {} {} ", companion_system_time_usec,
                 odometry_data.position_body.x_m, odometry_data.position_body.y_m, odometry_data.position_body.z_m);
     });
 
