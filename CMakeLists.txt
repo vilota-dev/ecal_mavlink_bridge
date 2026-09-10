@@ -161,28 +161,21 @@ set_target_properties(ecal_odometry_mavlink_bridge PROPERTIES INSTALL_RPATH "$OR
 set_target_properties(test_timesync PROPERTIES INSTALL_RPATH "$ORIGIN/../lib" )
 set_target_properties(send_vision_position_estimate PROPERTIES INSTALL_RPATH "$ORIGIN/../lib" )
 
-# 方法1：若 MAVSDK 安装在系统目录，用 find_library 自动查找
-# find_library(MAVSDK_LIB mavsdk REQUIRED)  # 查找 libmavsdk.so
-# 方法2：若 MAVSDK 是本地编译，手动指定路径（如你之前注释的路径）
-set(MAVSDK_SO "${CMAKE_SOURCE_DIR}/cache/MAVSDK-install/lib/libmavsdk.so")
-set(MAVSDK_SO_VERSION "${CMAKE_SOURCE_DIR}/cache/MAVSDK-install/lib/libmavsdk.so.694df0bb")
-set(MAVSDK_SO_FULL "${CMAKE_SOURCE_DIR}/cache/MAVSDK-install/lib/libmavsdk.so.694df0bb.694df0bb.694df0bb")
-# 安装 MAVSDK 共享库到 /opt/ecal_mavlink_bridge/lib
+# Install the MAVSDK library selected by find_package() and its runtime SONAME
+# link. Generator expressions keep this in sync when the MAVSDK version changes.
 install(
-    FILES 
-    ${MAVSDK_SO}          # 第一层符号链接：libmavsdk.so
-    ${MAVSDK_SO_VERSION}  # 第二层符号链接：libmavsdk.so.694df0bb
-    ${MAVSDK_SO_FULL}     # 实际库文件：libmavsdk.so.694df0bb.694df0bb.694df0bb
-    DESTINATION lib  # 对应 /opt/ecal_mavlink_bridge/lib
+    FILES
+    "$<TARGET_FILE:MAVSDK::mavsdk>"
+    "$<TARGET_SONAME_FILE:MAVSDK::mavsdk>"
+    DESTINATION lib
 )
 
-set(VK_SDK_LIB_PATH "/opt/vilota/lib/libvk_sdk.so.1.4.0")
-set(VK_SDK_LINK_PATH "/opt/vilota/lib/libvk_sdk.so")
+# Likewise, package the vk_sdk implementation from the imported target rather
+# than assuming a particular installed SDK version.
 install(
-  FILES 
-  ${VK_SDK_LIB_PATH}
-  ${VK_SDK_LINK_PATH}
-  DESTINATION lib
+    FILES
+    "$<TARGET_FILE:vilota::vk_sdk>"
+    DESTINATION lib
 )
 
 set(CPACK_PACKAGING_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}")
